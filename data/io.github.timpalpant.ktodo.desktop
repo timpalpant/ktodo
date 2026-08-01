@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=KTodo
+GenericName=Task Manager
+Comment=Manage your Todoist tasks, projects and team assignments
+Exec=ktodo
+Icon=io.github.timpalpant.ktodo
+Terminal=false
+Categories=Qt;KDE;Office;ProjectManagement;
+Keywords=todo;task;tasks;todoist;project;reminder;checklist;gtd;
+StartupNotify=true
+X-KDE-StartupNotify=true

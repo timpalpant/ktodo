@@ -1,0 +1,65 @@
+# Maintainer: Timothy Palpant <tim@palpant.us>
+
+pkgname=ktodo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Native Todoist client for KDE Plasma, built with Kirigami'
+arch=('x86_64' 'aarch64')
+url='https://github.com/timpalpant/ktodo'
+license=('GPL-3.0-or-later')
+
+depends=(
+  'qt6-base'
+  'qt6-declarative'
+  'qt6-networkauth'
+  'kirigami'
+  'kirigami-addons'
+  'ki18n'
+  'kconfig'
+  'kcoreaddons'
+  'knotifications'
+  'kwallet'
+  'kiconthemes'
+  'kwindowsystem'
+  'hicolor-icon-theme'
+)
+
+makedepends=('cmake' 'ninja' 'qt6-tools')
+
+# The release asset built by .github/workflows/release.yml, not the archive
+# GitHub generates on demand: the uploaded file is immutable and its digest is
+# published alongside it, so there is a fixed value to check against.
+source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
+# Never SKIP here. This is a fixed tarball, not a VCS checkout, so SKIP would
+# mean makepkg builds whatever the download happened to return. Take the value
+# from ktodo-$pkgver.tar.gz.sha256 in the release; the release workflow prints
+# the line to paste. An unreplaced placeholder fails the build, which is the
+# point -- a wrong hash must stop the build, not be waved through.
+sha256sums=('REPLACE_WITH_RELEASE_SHA256')
+
+# Todoist OAuth client registered for this package. A desktop application is a
+# "public client" under RFC 8252: anything shipped in the binary can be
+# extracted, so this pair identifies the build rather than authenticating it.
+# Users who prefer their own registration can override both at runtime in
+# ~/.config/ktodorc without rebuilding.
+_oauth_client_id=''
+_oauth_client_secret=''
+
+build() {
+  cmake -B build -S "$pkgname-$pkgver" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=ON \
+    -DKTODO_OAUTH_CLIENT_ID="$_oauth_client_id" \
+    -DKTODO_OAUTH_CLIENT_SECRET="$_oauth_client_secret"
+  cmake --build build
+}
+
+check() {
+  # Headless, and touches neither the network nor a Todoist account.
+  ctest --test-dir build --output-on-failure --no-tests=error
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

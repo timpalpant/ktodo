@@ -1,0 +1,68 @@
+# Maintainer: Timothy Palpant <tim@palpant.us>
+#
+# Development package: builds the current main branch. Publish this one as
+# `ktodo-git` on the AUR; use ./PKGBUILD for tagged releases.
+
+pkgname=ktodo-git
+_pkgname=ktodo
+pkgver=r1.0000000
+pkgrel=1
+pkgdesc='Native Todoist client for KDE Plasma, built with Kirigami (git)'
+arch=('x86_64' 'aarch64')
+url='https://github.com/timpalpant/ktodo'
+license=('GPL-3.0-or-later')
+
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+
+depends=(
+  'qt6-base'
+  'qt6-declarative'
+  'qt6-networkauth'
+  'kirigami'
+  'kirigami-addons'
+  'ki18n'
+  'kconfig'
+  'kcoreaddons'
+  'knotifications'
+  'kwallet'
+  'kiconthemes'
+  'kwindowsystem'
+  'hicolor-icon-theme'
+)
+
+makedepends=('git' 'cmake' 'ninja' 'qt6-tools')
+
+# SKIP is correct for a VCS source and only for a VCS source: git checks the
+# objects it fetches itself. The release PKGBUILD pins a real digest instead.
+source=("$_pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+# See the note in ./PKGBUILD: a desktop app cannot keep a client secret, so
+# this pair identifies the build rather than authenticating it.
+_oauth_client_id=''
+_oauth_client_secret=''
+
+pkgver() {
+  cd "$_pkgname"
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cmake -B build -S "$_pkgname" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=ON \
+    -DKTODO_OAUTH_CLIENT_ID="$_oauth_client_id" \
+    -DKTODO_OAUTH_CLIENT_SECRET="$_oauth_client_secret"
+  cmake --build build
+}
+
+check() {
+  # Headless, and touches neither the network nor a Todoist account.
+  ctest --test-dir build --output-on-failure --no-tests=error
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

@@ -1,0 +1,229 @@
+# Cuts a release when a vX.Y.Z tag is pushed.
+#
+# Three artifacts are published, plus a checksum for each:
+#   1. ktodo-X.Y.Z.tar.gz         source bundle (what the AUR package pins)
+#   2. ktodo-X.Y.Z-*.pkg.tar.zst  Arch package, built with the AUR PKGBUILD
+#   3. ktodo.flatpak              single-file Flatpak bundle
+#
+# GitHub attaches its own "Source code (zip/tar.gz)" links to every release,
+# but those are generated on demand and are not byte-stable, so they cannot be
+# pinned by digest. The tarball built here is a real uploaded asset, which is
+# what makes a sha256sums entry in the PKGBUILD meaningful.
+#
+# The website is deployed by pages.yml, which triggers on the same tag.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Build, test and check versions
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel cmake ninja git \
+            qt6-base qt6-declarative qt6-networkauth qt6-tools \
+            kirigami kirigami-addons ki18n kconfig kcoreaddons \
+            knotifications kwallet kiconthemes kwindowsystem \
+            gettext appstream desktop-file-utils
+
+      - uses: actions/checkout@v4
+
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build and test
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --no-tests=error
+
+      - name: Check the tag agrees with the project metadata
+        # A release whose metadata disagrees with its tag causes confusing
+        # breakage downstream in the AUR and on Flathub, so fail before
+        # anything is published.
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          project=$(grep -oP 'project\(ktodo VERSION \K[0-9.]+' CMakeLists.txt)
+          echo "tag=$tag project=$project"
+          if [ "$tag" != "$project" ]; then
+            echo "::error::Tag $tag does not match CMakeLists.txt version $project"
+            exit 1
+          fi
+          if ! grep -q "version=\"$tag\"" data/io.github.timpalpant.ktodo.metainfo.xml; then
+            echo "::error::No <release version=\"$tag\"> entry in the AppStream metainfo"
+            exit 1
+          fi
+          appstreamcli validate --no-net data/io.github.timpalpant.ktodo.metainfo.xml
+
+  source:
+    name: Source tarball
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create the tarball
+        run: |
+          name="ktodo-${GITHUB_REF_NAME#v}"
+          git archive --format=tar.gz --prefix="$name/" \
+            -o "$name.tar.gz" "$GITHUB_REF_NAME"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+
+      # The AUR package pins this tarball by digest, so the value has to travel
+      # from here into the PKGBUILD. A stale digest left over from an earlier
+      # version is a hard error: it would either break the build or, worse,
+      # describe a file nobody is actually shipping.
+      - name: Report the AUR checksum
+        run: |
+          name="ktodo-${GITHUB_REF_NAME#v}"
+          digest=$(cut -d' ' -f1 < "$name.tar.gz.sha256")
+          recorded=$(sed -n "s/^sha256sums=('\(.*\)')/\1/p" packaging/aur/ktodo/PKGBUILD)
+
+          if [ "$recorded" != "$digest" ] && [ "$recorded" != "REPLACE_WITH_RELEASE_SHA256" ]; then
+            echo "::error::packaging/aur/ktodo/PKGBUILD pins $recorded, but this tarball is $digest"
+            exit 1
+          fi
+
+          {
+            echo "### AUR package"
+            echo
+            echo "Before publishing the draft, set this in \`packaging/aur/ktodo/PKGBUILD\`:"
+            echo
+            echo '```sh'
+            echo "sha256sums=('$digest')"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$recorded" = "REPLACE_WITH_RELEASE_SHA256" ]; then
+            echo "::warning::PKGBUILD still holds the placeholder checksum; set it to $digest"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-tarball
+          path: |
+            ktodo-*.tar.gz
+            ktodo-*.tar.gz.sha256
+          if-no-files-found: error
+
+  archpkg:
+    name: Arch package
+    needs: verify
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed base-devel git pacman-contrib sudo
+
+      - uses: actions/checkout@v4
+
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Uses the AUR PKGBUILD with its source repointed at this checkout, so
+      # the published package is built the same way AUR users build theirs.
+      - name: Build the package
+        run: ./packaging/build-arch-package.sh --outdir "$PWD/dist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: |
+            dist/*.pkg.tar.zst
+            dist/*.pkg.tar.zst.sha256
+          if-no-files-found: error
+
+  flatpak:
+    name: Flatpak bundle
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install flatpak
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user \
+            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install the KDE runtime
+        run: |
+          flatpak install --user --noninteractive flathub \
+            org.kde.Platform//6.11 org.kde.Sdk//6.11
+
+      - name: Build the bundle
+        # The CI manifest builds this checkout, which at a tag is the tagged
+        # source. The Flathub manifest pins the tag instead and is submitted
+        # separately.
+        run: |
+          flatpak-builder --user --disable-rofiles-fuse --force-clean \
+            --repo=flatpak-repo build-flatpak \
+            packaging/flatpak/io.github.timpalpant.ktodo.ci.yml
+          flatpak build-bundle flatpak-repo ktodo.flatpak \
+            io.github.timpalpant.ktodo
+          sha256sum ktodo.flatpak > ktodo.flatpak.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: |
+            ktodo.flatpak
+            ktodo.flatpak.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: [source, archpkg, flatpak]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List what will be published
+        run: ls -la artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          # Drafted rather than published: the AUR checksum has to be pasted
+          # into the PKGBUILD before the release is announced.
+          draft: true
+          generate_release_notes: true
+          files: artifacts/*
+          body: |
+            ### Install
+
+            **Arch Linux** — `paru -S ktodo`, or install the attached package
+            directly:
+
+            ```sh
+            sudo pacman -U ktodo-*.pkg.tar.zst
+            ```
+
+            **Flatpak** — download `ktodo.flatpak`, then:
+
+            ```sh
+            flatpak install --user ktodo.flatpak
+            flatpak run io.github.timpalpant.ktodo
+            ```
+
+            Flathub builds are also listed in KDE Discover and GNOME Software.
+
+            **From source** — `ktodo-*.tar.gz` is the release tarball the AUR
+            package pins. A `.sha256` accompanies every artifact.
+
+            A Todoist account is required. KTodo is an unofficial client and is
+            not affiliated with Doist.

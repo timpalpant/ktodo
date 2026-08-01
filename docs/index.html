@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KTodo — a native Todoist client for KDE Plasma</title>
+<meta name="description" content="KTodo is an offline-first Todoist client for KDE Plasma, built with Kirigami and Qt Quick.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+
+<meta property="og:title" content="KTodo">
+<meta property="og:description" content="A native, offline-first Todoist client for KDE Plasma.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://timpalpant.github.io/ktodo/">
+<meta property="og:image" content="https://timpalpant.github.io/ktodo/icon.svg">
+
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfbfc;
+    --surface: #ffffff;
+    --border: #e2e4e8;
+    --text: #1b1d21;
+    --muted: #5c6370;
+    --accent: #1d99f3;
+    --accent-hover: #3daee9;
+    --code-bg: #f2f3f5;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --surface: #1d2025;
+      --border: #2c3038;
+      --text: #eceff4;
+      --muted: #9aa1ad;
+      --accent: #3daee9;
+      --accent-hover: #63c3f5;
+      --code-bg: #22262c;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---- hero ---- */
+  header { padding: 72px 0 56px; text-align: center; }
+  header img { width: 112px; height: 112px; }
+  h1 {
+    margin: 20px 0 8px;
+    font-size: 2.75rem;
+    letter-spacing: -0.02em;
+  }
+  .tagline { margin: 0 auto; max-width: 38ch; color: var(--muted); font-size: 1.15rem; }
+
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 20px;
+  }
+  .badges img { width: auto; height: 20px; }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 32px;
+  }
+  .btn {
+    display: inline-block;
+    padding: 11px 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    transition: border-color .15s, transform .15s;
+  }
+  .btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+  /* ---- sections ---- */
+  section { padding: 40px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 1.4rem; margin: 0 0 20px; letter-spacing: -0.01em; }
+  h3 { font-size: 1rem; margin: 24px 0 8px; }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+  .features li {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .features strong { display: block; margin-bottom: 4px; }
+  .features span { color: var(--muted); font-size: .95rem; }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: .9rem;
+    line-height: 1.5;
+  }
+  code { font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; }
+  p code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: .9em; }
+
+  a { color: var(--accent); }
+
+  .note {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+
+  ul.plain { padding-left: 20px; color: var(--muted); }
+  ul.plain li { margin: 6px 0; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 0 56px;
+    color: var(--muted);
+    font-size: .9rem;
+    text-align: center;
+  }
+  footer p { margin: 6px 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <img src="icon.svg" alt="">
+    <h1>KTodo</h1>
+    <p class="tagline">A native, offline-first Todoist client for KDE&nbsp;Plasma.</p>
+
+    <div class="badges">
+      <a href="https://github.com/timpalpant/ktodo/actions/workflows/ci.yml"><img
+        src="https://img.shields.io/github/actions/workflow/status/timpalpant/ktodo/ci.yml?branch=master&amp;label=CI&amp;logo=github"
+        alt="CI status"></a>
+      <a href="https://github.com/timpalpant/ktodo/releases"><img
+        src="https://img.shields.io/github/v/release/timpalpant/ktodo?include_prereleases&amp;label=release&amp;logo=github"
+        alt="Latest release"></a>
+      <a href="https://github.com/timpalpant/ktodo/blob/master/LICENSE"><img
+        src="https://img.shields.io/badge/licence-GPL--3.0--or--later-blue"
+        alt="Licence"></a>
+    </div>
+
+    <div class="actions">
+      <a class="btn primary" href="https://app.todoist.com/app/install/153685_ddc8fa128ea8fc273e0d9c2d">Add to your Todoist account</a>
+      <a class="btn" href="https://github.com/timpalpant/ktodo">Source on GitHub</a>
+    </div>
+  </header>
+
+  <!--
+    A screenshot belongs here. None is included yet: the captures taken during
+    development show real account data. Drop a sanitised image into
+    docs/screenshots/ and reference it from this spot.
+  -->
+
+
+  <section>
+    <h2>What it does</h2>
+    <ul class="features">
+      <li>
+        <strong>Works offline</strong>
+        <span>Everything is cached locally and edits are queued, so the app is fully usable on a train. Changes replay when you reconnect.</span>
+      </li>
+      <li>
+        <strong>Built for Plasma</strong>
+        <span>Kirigami and Qt Quick throughout — Breeze styling, KWallet for your token, and native notifications. Not a packaged web page.</span>
+      </li>
+      <li>
+        <strong>Projects and sub-tasks</strong>
+        <span>Sub-projects, sections and nested sub-tasks, with drag and drop to reorder and move tasks between sections.</span>
+      </li>
+      <li>
+        <strong>Team projects</strong>
+        <span>Assignees scoped to each project's collaborators, comment threads, and per-role permissions.</span>
+      </li>
+      <li>
+        <strong>Dates that behave</strong>
+        <span>Due dates, deadlines, priorities and recurring schedules, with natural language parsed exactly as the official clients do.</span>
+      </li>
+      <li>
+        <strong>Today, Upcoming, filters</strong>
+        <span>Saved filters are evaluated locally, including boolean queries, <code>#project</code>, <code>@label</code> and <code>p1</code>–<code>p4</code>.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Getting started</h2>
+
+    <h3>1. Connect your Todoist account</h3>
+    <p>
+      KTodo reaches Todoist through a registered integration. Install it once,
+      then sign in from the app:
+    </p>
+    <p>
+      <a class="btn primary" href="https://app.todoist.com/app/install/153685_ddc8fa128ea8fc273e0d9c2d">
+        Add KTodo to Todoist
+      </a>
+    </p>
+    <p class="note">
+      This grants KTodo access to your tasks. You can revoke it whenever you
+      like from Todoist's <em>Settings → Integrations → Connected apps</em>.
+      Your password is never seen by the app — sign-in happens in your browser.
+    </p>
+
+    <h3>2. Install the app</h3>
+
+    <p>From Flathub — also how it appears in KDE Discover:</p>
+<pre><code>flatpak install flathub io.github.timpalpant.ktodo</code></pre>
+
+    <p>On Arch Linux and derivatives:</p>
+<pre><code>yay -S ktodo        # or ktodo-git for the development branch</code></pre>
+
+    <p>Or build from source:</p>
+<pre><code>git clone https://github.com/timpalpant/ktodo.git
+cd ktodo
+cmake -B build -G Ninja
+cmake --build build
+./build/ktodo</code></pre>
+
+    <p>
+      You will need Qt&nbsp;6.6+, KDE Frameworks&nbsp;6 and
+      <code>kirigami-addons</code>. The full dependency list is in the
+      <a href="https://github.com/timpalpant/ktodo#building">README</a>.
+    </p>
+  </section>
+
+  <section>
+    <h2>Contributing</h2>
+    <p>
+      Bug reports and patches are welcome — see
+      <a href="https://github.com/timpalpant/ktodo/issues">issues</a> and
+      <a href="https://github.com/timpalpant/ktodo/pulls">pull requests</a>.
+      KTodo is free software under the GPL-3.0-or-later.
+    </p>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>
+      KTodo is an unofficial, community-built client. It is not affiliated
+      with, endorsed by, or supported by Doist, the makers of Todoist.
+    </p>
+    <p>© 2026 the KTodo authors · GPL-3.0-or-later</p>
+  </div>
+</footer>
+
+</body>
+</html>

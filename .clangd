@@ -1,0 +1,8 @@
+# The build uses GCC, whose -mno-direct-extern-access clangd does not accept.
+# Dropping it lets clangd parse compile_commands.json for editor tooling.
+CompileFlags:
+  Remove:
+    - -mno-direct-extern-access
+    - -fno-var-tracking-assignments
+  Add:
+    - -Wno-unknown-warning-option

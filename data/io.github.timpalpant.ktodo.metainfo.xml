@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.timpalpant.ktodo</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>KTodo</name>
+  <summary>Manage your Todoist tasks natively on Plasma</summary>
+
+  <description>
+    <p>
+      KTodo is a Todoist client built with Kirigami and Qt Quick, so it looks
+      and behaves like the rest of your Plasma desktop rather than a packaged
+      web page.
+    </p>
+    <p>
+      Everything is cached locally and edits are queued, so the app stays
+      usable with no connection and replays your changes when you reconnect.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Works offline, with changes queued until you reconnect</li>
+      <li>Projects, sub-projects, sections and sub-tasks</li>
+      <li>Today and Upcoming views, saved filters and labels</li>
+      <li>Team projects with assignees and comment threads</li>
+      <li>Due dates, recurring schedules, deadlines and priorities</li>
+      <li>Drag and drop to reorder tasks and move them between sections</li>
+      <li>Desktop notifications for reminders</li>
+    </ul>
+    <p>
+      KTodo is an unofficial client. It is not affiliated with, endorsed by, or
+      supported by Doist, the makers of Todoist. A Todoist account is required.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.timpalpant.ktodo.desktop</launchable>
+
+  <url type="homepage">https://timpalpant.github.io/ktodo/</url>
+  <url type="bugtracker">https://github.com/timpalpant/ktodo/issues</url>
+  <url type="vcs-browser">https://github.com/timpalpant/ktodo</url>
+  <url type="contribute">https://github.com/timpalpant/ktodo/pulls</url>
+
+  <developer id="io.github.timpalpant">
+    <name>Timothy Palpant</name>
+  </developer>
+
+  <!--
+    Flathub requires at least one screenshot, and Discover uses them for the
+    listing. These must be hosted somewhere reachable, so they point at the
+    project website; add the images to docs/screenshots/ and they will be
+    published with the site. Captures must not contain real account data.
+  -->
+  <screenshots>
+    <screenshot type="default">
+      <image>https://timpalpant.github.io/ktodo/screenshots/today.png</image>
+      <caption>The Today view, with projects and saved filters in the sidebar</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://timpalpant.github.io/ktodo/screenshots/task.png</image>
+      <caption>Editing a task, including its schedule, labels and assignee</caption>
+    </screenshot>
+  </screenshots>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#8ed3f7</color>
+    <color type="primary" scheme_preference="dark">#12557f</color>
+  </branding>
+
+  <categories>
+    <category>Office</category>
+    <category>ProjectManagement</category>
+  </categories>
+
+  <keywords>
+    <keyword>todo</keyword>
+    <keyword>task</keyword>
+    <keyword>todoist</keyword>
+    <keyword>checklist</keyword>
+    <keyword>productivity</keyword>
+    <keyword>gtd</keyword>
+  </keywords>
+
+  <provides>
+    <binary>ktodo</binary>
+  </provides>
+
+  <releases>
+    <release version="1.0.0" date="2026-08-01">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1"/>
+</component>

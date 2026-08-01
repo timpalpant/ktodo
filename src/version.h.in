@@ -1,0 +1,8 @@
+#pragma once
+
+#define KTODO_VERSION_STRING "@PROJECT_VERSION@"
+#define KTODO_APP_ID "io.github.timpalpant.ktodo"
+
+// Empty unless the build set them; see the OAuth notes in the README.
+#define KTODO_OAUTH_CLIENT_ID "@KTODO_OAUTH_CLIENT_ID@"
+#define KTODO_OAUTH_CLIENT_SECRET "@KTODO_OAUTH_CLIENT_SECRET@"

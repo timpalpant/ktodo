@@ -1,4 +1,4 @@
-# C++ objects and libs
+# C++ objects and libraries
 *.slo
 *.lo
 *.o
@@ -10,7 +10,7 @@
 *.dll
 *.dylib
 
-# Qt-es
+# Qt build products
 object_script.*.Release
 object_script.*.Debug
 *_plugin_import.cpp
@@ -27,30 +27,44 @@ qrc_*.cpp
 ui_*.h
 *.qmlc
 *.jsc
-Makefile*
-*build-*
-build/
 *.qm
 *.prl
-*.qmlls.ini
-
-# Qt unit tests
+*_qmlcache.qrc
 target_wrapper.*
 
-# QtCreator
+# Qt Creator
 *.autosave
-
-# QtCreator Qml
 *.qmlproject.user
 *.qmlproject.user.*
-
-# QtCreator CMake
 CMakeLists.txt.user*
-
-# QtCreator 4.8< compilation database
-compile_commands.json
-
-# QtCreator local machine specific files for imported projects
 *creator.user*
+*.user
 
-*_qmlcache.qrc
+# Editors and language servers
+.cache/
+compile_commands.json
+.qmlls.ini
+*.kate-swp
+*.swp
+
+# CMake and build trees.
+#
+# These are anchored to directories on purpose. The unanchored `*build-*` that
+# ships in Qt's template .gitignore also matches ordinary files, which silently
+# excluded packaging/build-arch-package.sh.
+/Makefile
+build*/
+
+
+# Locally built packages
+dist/
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.flatpak
+.flatpak-builder/
+packaging/aur/*/src/
+packaging/aur/*/pkg/
+packaging/aur/*/*.tar.gz
+
+# Secrets
+.env

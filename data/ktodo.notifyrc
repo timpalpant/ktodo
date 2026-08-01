@@ -1,0 +1,15 @@
+[Global]
+IconName=view-task
+Comment=KTodo
+Name=KTodo
+
+[Event/reminder]
+Name=Task reminder
+Comment=A task reminder has come due
+Action=Popup
+Sound=bell
+
+[Event/syncerror]
+Name=Sync problem
+Comment=Changes could not be sent to Todoist
+Action=Popup

@@ -1,0 +1,47 @@
+# Publishes docs/ to GitHub Pages.
+#
+# Triggered by the same vX.Y.Z tag that cuts a release, so the website always
+# describes a version that exists. Use the manual run to preview a docs change
+# without tagging.
+#
+# The Pages permissions are kept in their own workflow rather than folded into
+# release.yml, so the job that can write releases never also holds a Pages
+# deployment token.
+name: Pages
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a queued run supersedes an older one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy the website
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

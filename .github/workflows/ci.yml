@@ -1,0 +1,223 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    # KDE Frameworks 6 and kirigami-addons are packaged far more currently on
+    # Arch than on the runner's Ubuntu, and Arch is the primary target anyway.
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel cmake ninja git \
+            qt6-base qt6-declarative qt6-networkauth qt6-tools \
+            kirigami kirigami-addons ki18n kconfig kcoreaddons \
+            knotifications kwallet kiconthemes kwindowsystem \
+            gettext
+
+      - uses: actions/checkout@v4
+
+      - name: Trust the workspace
+        # The container runs as root while the checkout is owned by the runner
+        # user, which git otherwise refuses to touch.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        # The suite is headless and touches neither the network nor a Todoist
+        # account, so it needs no display and no credentials.
+        run: ctest --test-dir build --output-on-failure --no-tests=error
+
+      - name: Verify the install tree
+        run: |
+          DESTDIR="$PWD/staging" cmake --install build
+          find staging -type f | sort
+          # The desktop entry's Icon= must resolve to an installed icon,
+          # otherwise the launcher shows a blank tile.
+          test -f staging/usr/bin/ktodo
+          test -f staging/usr/share/applications/io.github.timpalpant.ktodo.desktop
+          test -f staging/usr/share/metainfo/io.github.timpalpant.ktodo.metainfo.xml
+          test -f staging/usr/share/icons/hicolor/scalable/apps/io.github.timpalpant.ktodo.svg
+
+  lint:
+    name: QML and metadata
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel cmake ninja git \
+            qt6-base qt6-declarative qt6-networkauth qt6-tools \
+            kirigami kirigami-addons ki18n kconfig kcoreaddons \
+            knotifications kwallet kiconthemes kwindowsystem \
+            gettext appstream desktop-file-utils
+
+      - uses: actions/checkout@v4
+
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Validate the desktop entry
+        run: desktop-file-validate data/io.github.timpalpant.ktodo.desktop
+
+      - name: Validate the AppStream metadata
+        # --no-net because the checks that hit the network are flaky in CI and
+        # would fail on URLs that are fine but rate-limited.
+        run: appstreamcli validate --no-net data/io.github.timpalpant.ktodo.metainfo.xml
+
+      - name: qmllint
+        # The tree is expected to be silent; qmllint warnings are failures.
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build build --target all_qmllint
+
+  format:
+    name: Formatting
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed git clang
+
+      - uses: actions/checkout@v4
+
+      - name: Check clang-format
+        run: |
+          find src tests \( -name '*.cpp' -o -name '*.h' \) -print0 \
+            | xargs -0 clang-format --dry-run --Werror
+
+  packaging:
+    name: Packaging files
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed base-devel git pacman-contrib
+
+      - uses: actions/checkout@v4
+
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Lint the PKGBUILDs
+        run: |
+          useradd -m builder
+          chown -R builder .
+          for dir in packaging/aur/*/; do
+            echo "== $dir"
+            bash -n "$dir/PKGBUILD"
+            su builder -c "cd '$dir' && makepkg --printsrcinfo > /dev/null"
+          done
+
+      # The release package downloads a fixed tarball, so it has to verify it.
+      # SKIP belongs only to ktodo-git, whose source is a git checkout.
+      - name: Check the release tarball is pinned by digest
+        run: |
+          if grep -q "^sha256sums=('SKIP')" packaging/aur/ktodo/PKGBUILD; then
+            echo "::error::packaging/aur/ktodo/PKGBUILD downloads a tarball without checking it"
+            exit 1
+          fi
+
+      # The OAuth placeholders must not be committed filled in: credentials are
+      # stamped into the packaging files only when a package is actually built.
+      # --check reports rather than fails, so the result is asserted here.
+      - name: Check the OAuth placeholders are empty
+        run: |
+          ./packaging/fill-credentials.sh --check | tee creds.txt
+          if grep -q '^filled:' creds.txt; then
+            echo "::error::Packaging files have OAuth credentials committed; run packaging/fill-credentials.sh --clear"
+            exit 1
+          fi
+
+      # Builds the pacman package the release ships, from this commit, so a
+      # broken PKGBUILD surfaces here rather than while cutting a release.
+      - name: Build the pacman package
+        run: ./packaging/build-arch-package.sh --outdir "$PWD/dist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ktodo-pacman-package
+          path: dist/*.pkg.tar.zst
+          if-no-files-found: error
+
+  flatpak:
+    name: Flatpak
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp in the OAuth credentials
+        # Optional: without these the Flatpak builds fine but cannot sign in.
+        # Set them as repository secrets to exercise the real sign-in path.
+        env:
+          KTODO_CLIENT_ID: ${{ secrets.KTODO_CLIENT_ID }}
+          KTODO_CLIENT_SECRET: ${{ secrets.KTODO_CLIENT_SECRET }}
+        run: |
+          if [ -n "$KTODO_CLIENT_ID" ]; then
+            packaging/fill-credentials.sh
+          else
+            echo "No OAuth credentials configured; building without them."
+          fi
+
+      # Deliberately not the bilelmoussaoui/flatpak-github-actions container:
+      # its published tags stop at kde-6.7 and this app targets the 6.11
+      # runtime, so that image cannot be pulled. Installing flatpak directly
+      # works for any runtime version.
+      - name: Install flatpak
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user \
+            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install the KDE runtime
+        run: |
+          flatpak install --user --noninteractive flathub \
+            org.kde.Platform//6.11 org.kde.Sdk//6.11
+
+      - name: Cache the flatpak-builder state
+        uses: actions/cache@v4
+        with:
+          path: .flatpak-builder
+          key: flatpak-builder-${{ hashFiles('packaging/flatpak/*.yml') }}
+          restore-keys: flatpak-builder-
+
+      - name: Build
+        # The CI manifest builds this checkout; the tagged one is for Flathub.
+        run: |
+          flatpak-builder --user --disable-rofiles-fuse --force-clean \
+            --repo=flatpak-repo build-flatpak \
+            packaging/flatpak/io.github.timpalpant.ktodo.ci.yml
+
+      - name: Create the bundle
+        run: |
+          flatpak build-bundle flatpak-repo ktodo.flatpak \
+            io.github.timpalpant.ktodo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ktodo-flatpak
+          path: ktodo.flatpak
+          if-no-files-found: error

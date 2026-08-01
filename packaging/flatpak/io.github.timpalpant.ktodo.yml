@@ -1,0 +1,83 @@
+# Flatpak manifest for KTodo.
+#
+# Build locally with:
+#   flatpak install -y flathub org.kde.Platform//6.11 org.kde.Sdk//6.11
+#   flatpak-builder --user --install --force-clean build-flatpak \
+#       packaging/flatpak/io.github.timpalpant.ktodo.yml
+#
+# For Flathub, this file is submitted to flathub/flathub as
+# io.github.timpalpant.ktodo.yml with the ktodo source pinned to a tag.
+
+id: io.github.timpalpant.ktodo
+
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+
+command: ktodo
+
+finish-args:
+  # Rendering and display.
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # Reaching the Todoist API. This also shares the host network namespace,
+  # which the OAuth sign-in depends on: the app listens on 127.0.0.1:8788 and
+  # the browser — running outside the sandbox — must be able to reach it.
+  - --share=network
+
+  # Access tokens are stored in KWallet, which is reached over D-Bus. Without
+  # this the app silently falls back to a 0600 file in its own data directory.
+  - --talk-name=org.kde.kwalletd6
+
+  # Reminder notifications. KNotifications prefers the portal but falls back
+  # to the D-Bus service directly.
+  - --talk-name=org.freedesktop.Notifications
+
+  # Nothing else: KTodo reads and writes only its own data directory, which
+  # the sandbox provides, so it needs no filesystem permissions at all.
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  - /mkspecs
+  - /share/man
+  - '*.a'
+  - '*.la'
+
+modules:
+  # Not part of the KDE runtime, so it is bundled. Keep the version in step
+  # with what the app is developed against.
+  - name: kirigami-addons
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://download.kde.org/stable/kirigami-addons/kirigami-addons-1.13.1.tar.xz
+        sha256: 76026f0abe8c948208ce75a02a9ecac60c618ac5288ca546e09da64bc4af7050
+        x-checker-data:
+          type: anitya
+          project-id: 267180
+          stable-only: true
+          url-template: https://download.kde.org/stable/kirigami-addons/kirigami-addons-$version.tar.xz
+
+  - name: ktodo
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      # Todoist OAuth client for the published build. A desktop application is
+      # a "public client" under RFC 8252 and cannot keep a secret, so this
+      # pair identifies the build rather than authenticating it. Users may
+      # override both at runtime in ~/.config/ktodorc.
+      - -DKTODO_OAUTH_CLIENT_ID=
+      - -DKTODO_OAUTH_CLIENT_SECRET=
+    sources:
+      # Flathub submissions must pin a tag or commit rather than a branch.
+      - type: git
+        url: https://github.com/timpalpant/ktodo.git
+        tag: v1.0.0
