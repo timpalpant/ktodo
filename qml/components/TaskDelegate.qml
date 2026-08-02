@@ -52,14 +52,17 @@ Delegates.RoundedItemDelegate {
     property ListView dragView: null
     property int rowIndex: -1
     property bool draggable: false
+    /// Visual-only displacement controlled by TaskDragHandle. ListView keeps
+    /// the outer delegate row in its normal layout slot throughout the drag.
+    property real dragOffsetY: 0
 
     signal editRequested
     signal completeRequested
     signal deleteRequested
     signal scheduleRequested
     signal dragStarted(int index)
-    signal dragMoved(int targetIndex)
-    signal dragEnded(int fromIndex, int toIndex)
+    signal dragMoved(int insertIndex, int targetIndex, bool asSubtask)
+    signal dragEnded(int fromIndex, int insertIndex, int targetIndex, bool asSubtask, bool moved, bool cancelled)
 
     // Guards against the row being re-tapped while the fade-out plays.
     property bool completing: false
@@ -68,6 +71,9 @@ Delegates.RoundedItemDelegate {
     // The delegate's own horizontal padding aligns rows with section
     // headers; the sub-task indent goes on top of it.
     leftPadding: horizontalPadding + depth * Kirigami.Units.gridUnit * 1.5
+    transform: Translate {
+        y: root.dragOffsetY
+    }
 
     opacity: completing ? 0.35 : (isPending ? 0.7 : 1.0)
 
@@ -77,19 +83,53 @@ Delegates.RoundedItemDelegate {
         }
     }
 
-    onClicked: root.editRequested()
+    // Project rows use TaskDragHandle for a no-movement click. Keeping the
+    // delegate button passive there prevents its own click from opening an
+    // editor after a completed drag.
+    onClicked: {
+        if (!root.draggable) {
+            root.editRequested();
+        }
+    }
 
     // A plain Item, not a layout: the hover actions are overlaid on the row and
     // must not influence its height. Were they declared as ordinary children
     // they would be adopted into the layout via Control.contentData.
     contentItem: Item {
-        implicitWidth: mainRow.implicitWidth
+        // The ListView owns this delegate's width. Rich text can have a very
+        // large implicit width (notably an unbroken URL), so never feed that
+        // width back into PageRow and let it widen the current pane.
+        implicitWidth: root.availableWidth
         implicitHeight: mainRow.implicitHeight
+        clip: true
+
+        // A mouse drag begins from the task's normal content, while the
+        // controls above it (checkbox, links, schedule/delete) retain their
+        // direct click behaviour. A simple release still opens the editor.
+        TaskDragHandle {
+            id: taskDrag
+
+            anchors.fill: parent
+            z: 0
+            enabled: root.draggable
+            visible: root.draggable
+            listItem: root
+            listView: root.dragView
+            stackingItem: root.dragItem
+            rowIndex: root.rowIndex
+
+            onDragStarted: index => root.dragStarted(index)
+            onDragMoved: (insertIndex, targetIndex, asSubtask) => root.dragMoved(insertIndex, targetIndex, asSubtask)
+            onDragEnded: (fromIndex, insertIndex, targetIndex, asSubtask, moved, cancelled) => root.dragEnded(fromIndex, insertIndex, targetIndex, asSubtask, moved, cancelled)
+            onDragOffsetChanged: offset => root.dragOffsetY = offset
+            onClicked: root.editRequested()
+        }
 
         RowLayout {
             id: mainRow
 
             anchors.fill: parent
+            z: 1
             spacing: Kirigami.Units.largeSpacing
 
             PriorityBadge {
@@ -114,6 +154,9 @@ Delegates.RoundedItemDelegate {
             ColumnLayout {
                 spacing: 0
                 Layout.fillWidth: true
+                // Let the RowLayout shrink this column to the width left by
+                // the checkbox, avatar, and action overlay.
+                Layout.minimumWidth: 0
                 Layout.alignment: Qt.AlignTop
 
                 QQC2.Label {
@@ -130,44 +173,75 @@ Delegates.RoundedItemDelegate {
                     // Matches the checkbox, so a single-line row reads as one line.
                     Layout.minimumHeight: Kirigami.Units.iconSizes.smallMedium
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                 }
 
-                QQC2.Label {
-                    id: descriptionLabel
+                Item {
+                    id: descriptionPreview
 
-                    // Rich text so Markdown links and bare URLs in the
-                    // description are clickable straight from the list.
-                    text: root.descriptionHtml
-                    textFormat: Text.RichText
                     visible: root.description !== ""
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    opacity: 0.6
-                    font: Kirigami.Theme.smallFont
+                    implicitHeight: descriptionLabel.implicitHeight
+                    clip: true
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
 
-                    onLinkActivated: link => Qt.openUrlExternally(link)
+                    QQC2.Label {
+                        id: descriptionLabel
 
-                    // Only intercept the pointer over an actual link, so
-                    // clicking anywhere else still opens the task.
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.LeftButton
-                        hoverEnabled: root.descriptionHasLinks
-                        enabled: root.descriptionHasLinks
-                        cursorShape: descriptionLabel.linkAt(mouseX, mouseY) !== ""
-                            ? Qt.PointingHandCursor
-                            : Qt.ArrowCursor
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.rightMargin: descriptionEllipsis.visible
+                            ? descriptionEllipsis.implicitWidth
+                            : 0
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        // Rich text keeps Markdown links and bare URLs
+                        // clickable. Qt does not elide rich text itself, so
+                        // the parent clips it and the label below supplies the
+                        // visible ellipsis when it overflows.
+                        text: root.descriptionHtml
+                        textFormat: Text.RichText
+                        maximumLineCount: 1
+                        wrapMode: Text.NoWrap
+                        opacity: 0.6
+                        font: Kirigami.Theme.smallFont
+                        clip: true
 
-                        onPressed: mouse => {
-                            mouse.accepted = descriptionLabel.linkAt(mouse.x, mouse.y) !== "";
-                        }
-                        onClicked: mouse => {
-                            const link = descriptionLabel.linkAt(mouse.x, mouse.y);
-                            if (link !== "") {
-                                Qt.openUrlExternally(link);
+                        onLinkActivated: link => Qt.openUrlExternally(link)
+
+                        // Only intercept the pointer over an actual link, so
+                        // clicking anywhere else still opens the task.
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton
+                            hoverEnabled: root.descriptionHasLinks
+                            enabled: root.descriptionHasLinks
+                            cursorShape: descriptionLabel.linkAt(mouseX, mouseY) !== ""
+                                ? Qt.PointingHandCursor
+                                : Qt.ArrowCursor
+
+                            onPressed: mouse => {
+                                mouse.accepted = descriptionLabel.linkAt(mouse.x, mouse.y) !== "";
+                            }
+                            onClicked: mouse => {
+                                const link = descriptionLabel.linkAt(mouse.x, mouse.y);
+                                if (link !== "") {
+                                    Qt.openUrlExternally(link);
+                                }
                             }
                         }
+                    }
+
+                    QQC2.Label {
+                        id: descriptionEllipsis
+
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        z: 1
+                        text: "…"
+                        visible: descriptionLabel.implicitWidth > descriptionPreview.width
+                        color: descriptionLabel.color
+                        font: descriptionLabel.font
                     }
                 }
 
@@ -179,6 +253,7 @@ Delegates.RoundedItemDelegate {
                     visible: root.hasDue || root.showProject || root.labels.length > 0
                         || root.noteCount > 0 || root.deadlineText !== ""
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Layout.topMargin: Kirigami.Units.smallSpacing * 0.5
 
                     DueChip {
@@ -288,31 +363,19 @@ Delegates.RoundedItemDelegate {
 
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
+            z: 2
             spacing: 0
 
-            opacity: root.hovered || dragHandle.dragActive ? 1 : 0
+            opacity: root.hovered || taskDrag.dragActive ? 1 : 0
             // Stays live while a drag is in flight: the pointer routinely
             // leaves the row it started on, and disabling here would drop the
             // grab mid-gesture.
-            enabled: root.hovered || dragHandle.dragActive
+            enabled: root.hovered || taskDrag.dragActive
 
             Behavior on opacity {
                 NumberAnimation {
                     duration: Kirigami.Units.shortDuration
                 }
-            }
-
-            TaskDragHandle {
-                id: dragHandle
-
-                visible: root.draggable
-                listItem: root.dragItem
-                listView: root.dragView
-                rowIndex: root.rowIndex
-
-                onDragStarted: index => root.dragStarted(index)
-                onDragMoved: targetIndex => root.dragMoved(targetIndex)
-                onDragEnded: (fromIndex, toIndex) => root.dragEnded(fromIndex, toIndex)
             }
 
             QQC2.ToolButton {

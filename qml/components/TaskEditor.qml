@@ -33,6 +33,12 @@ Kirigami.Dialog {
     // a dialog two-thirds full of blank space.
     maximumHeight: Kirigami.Units.gridUnit * 40
 
+    // Kirigami.Dialog normally offsets y while its opacity animates. This
+    // editor's height can change as task details arrive, which makes that
+    // opacity-dependent placement form an indirect geometry loop in Qt.
+    // Keep the dialog centered, but leave the inherited fade as a fade.
+    y: parent ? Math.round((parent.height - height) / 2) : 0
+
     // Kirigami.Dialog is edge-to-edge by default, which suits list content but
     // leaves free-standing controls pressed against the frame.
     leftPadding: 0

@@ -259,233 +259,235 @@ Kirigami.ApplicationWindow {
             }
         }
 
-        // Children of a GlobalDrawer fill its content area.
+        // GlobalDrawer already has a scroll view around its content. Reporting
+        // the sidebar's real minimum height lets that one standard scrollbar
+        // appear only when there is actually something to scroll.
         Item {
+            id: sidebarContentArea
+
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumHeight: sidebarContent.implicitHeight
+            implicitHeight: sidebarContent.implicitHeight
 
-            QQC2.ScrollView {
-                id: sidebarScroll
+            ColumnLayout {
+                id: sidebarContent
 
-                anchors.fill: parent
-                anchors.rightMargin: resizeHandle.width
-                QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+                width: parent.width - resizeHandle.width
+                height: implicitHeight
+                spacing: 0
 
-                ColumnLayout {
-                    width: sidebarScroll.availableWidth
-                    spacing: 0
+                SidebarItem {
+                    text: i18n("Inbox")
+                    iconName: "mail-folder-inbox"
+                    onClicked: root.showInbox()
+                }
+                SidebarItem {
+                    text: i18n("Today")
+                    iconName: "view-calendar-day"
+                    counter: todayCounter.taskCount
+                    onClicked: root.showToday()
+                }
+                SidebarItem {
+                    text: i18n("Upcoming")
+                    iconName: "view-calendar-upcoming-days"
+                    onClicked: root.showPage(Qt.resolvedUrl("pages/UpcomingPage.qml"))
+                }
+                SidebarItem {
+                    text: i18n("Assigned to me")
+                    iconName: "user-identity"
+                    visible: App.isTeamAccount
+                    onClicked: root.showPage(Qt.resolvedUrl("pages/TaskListPage.qml"), {
+                        mode: TaskModel.AssignedToMe,
+                        pageTitle: i18n("Assigned to me"),
+                        pageIcon: "user-identity"
+                    })
+                }
 
-                    SidebarItem {
-                        text: i18n("Inbox")
-                        iconName: "mail-folder-inbox"
-                        onClicked: root.showInbox()
-                    }
-                    SidebarItem {
-                        text: i18n("Today")
-                        iconName: "view-calendar-day"
-                        counter: todayCounter.taskCount
-                        onClicked: root.showToday()
-                    }
-                    SidebarItem {
-                        text: i18n("Upcoming")
-                        iconName: "view-calendar-upcoming-days"
-                        onClicked: root.showPage(Qt.resolvedUrl("pages/UpcomingPage.qml"))
-                    }
-                    SidebarItem {
-                        text: i18n("Assigned to me")
-                        iconName: "user-identity"
-                        visible: App.isTeamAccount
-                        onClicked: root.showPage(Qt.resolvedUrl("pages/TaskListPage.qml"), {
-                            mode: TaskModel.AssignedToMe,
-                            pageTitle: i18n("Assigned to me"),
-                            pageIcon: "user-identity"
-                        })
-                    }
+                Kirigami.ListSectionHeader {
+                    text: i18n("Favorites")
+                    Layout.fillWidth: true
+                    visible: favoriteProjects.count > 0
+                }
+                Repeater {
+                    model: favoriteProjects
+                    delegate: SidebarItem {
+                        required property string projectId
+                        required property string name
+                        required property color color
+                        required property int taskCount
 
-                    Kirigami.ListSectionHeader {
-                        text: i18n("Favorites")
-                        Layout.fillWidth: true
-                        visible: favoriteProjects.count > 0
-                    }
-                    Repeater {
-                        model: favoriteProjects
-                        delegate: SidebarItem {
-                            required property string projectId
-                            required property string name
-                            required property color color
-                            required property int taskCount
-
-                            text: name
-                            dotColor: color
-                            counter: taskCount
-                            onClicked: root.showProject(projectId, name)
-                        }
-                    }
-
-                    Kirigami.ListSectionHeader {
-                        text: i18n("Projects")
-                        Layout.fillWidth: true
-                        visible: personalProjects.count > 0
-                    }
-                    Repeater {
-                        model: personalProjects
-                        delegate: SidebarItem {
-                            required property string projectId
-                            required property string name
-                            required property color color
-                            required property int taskCount
-                            required property int depth
-
-                            text: name
-                            dotColor: color
-                            counter: taskCount
-                            indent: depth
-                            onClicked: root.showProject(projectId, name)
-                        }
-                    }
-
-                    Kirigami.ListSectionHeader {
-                        text: i18n("Team Projects")
-                        Layout.fillWidth: true
-                        visible: teamProjects.count > 0
-                    }
-                    Repeater {
-                        model: teamProjects
-                        delegate: SidebarItem {
-                            required property string projectId
-                            required property string name
-                            required property color color
-                            required property int taskCount
-                            required property int depth
-
-                            text: name
-                            dotColor: color
-                            counter: taskCount
-                            indent: depth
-                            badgeIcon: "group"
-                            onClicked: root.showProject(projectId, name)
-                        }
-                    }
-
-                    Kirigami.ListSectionHeader {
-                        text: i18n("Filters")
-                        Layout.fillWidth: true
-                        visible: filtersModel.count > 0
-                    }
-                    Repeater {
-                        model: filtersModel
-                        delegate: SidebarItem {
-                            required property string name
-                            required property string query
-                            required property color color
-                            required property int taskCount
-
-                            text: name
-                            iconName: "view-filter"
-                            counter: taskCount
-                            onClicked: root.showPage(Qt.resolvedUrl("pages/TaskListPage.qml"), {
-                                mode: TaskModel.SavedFilter,
-                                filterQuery: query,
-                                pageTitle: name,
-                                pageIcon: "view-filter"
-                            })
-                        }
-                    }
-
-                    Kirigami.ListSectionHeader {
-                        text: i18n("Labels")
-                        Layout.fillWidth: true
-                        visible: labelsModel.count > 0
-                    }
-                    Repeater {
-                        model: labelsModel
-                        delegate: SidebarItem {
-                            required property string name
-                            required property color color
-                            required property int taskCount
-
-                            text: name
-                            iconName: "tag"
-                            tintIcon: true
-                            dotColor: color
-                            counter: taskCount
-                            onClicked: root.showPage(Qt.resolvedUrl("pages/TaskListPage.qml"), {
-                                mode: TaskModel.LabelTasks,
-                                labelName: name,
-                                pageTitle: name,
-                                pageIcon: "tag"
-                            })
-                        }
-                    }
-
-                    Item {
-                        Layout.preferredHeight: Kirigami.Units.gridUnit
+                        text: name
+                        dotColor: color
+                        counter: taskCount
+                        onClicked: root.showProject(projectId, name)
                     }
                 }
-                }   // ScrollView
 
-                // Drag handle on the trailing edge, like Dolphin's panel.
+                Kirigami.ListSectionHeader {
+                    text: i18n("Projects")
+                    Layout.fillWidth: true
+                    visible: personalProjects.count > 0
+                }
+                Repeater {
+                    model: personalProjects
+                    delegate: SidebarItem {
+                        required property string projectId
+                        required property string name
+                        required property color color
+                        required property int taskCount
+                        required property int depth
+
+                        text: name
+                        dotColor: color
+                        counter: taskCount
+                        indent: depth
+                        onClicked: root.showProject(projectId, name)
+                    }
+                }
+
+                Kirigami.ListSectionHeader {
+                    text: i18n("Team Projects")
+                    Layout.fillWidth: true
+                    visible: teamProjects.count > 0
+                }
+                Repeater {
+                    model: teamProjects
+                    delegate: SidebarItem {
+                        required property string projectId
+                        required property string name
+                        required property color color
+                        required property int taskCount
+                        required property int depth
+
+                        text: name
+                        dotColor: color
+                        counter: taskCount
+                        indent: depth
+                        badgeIcon: "group"
+                        onClicked: root.showProject(projectId, name)
+                    }
+                }
+
+                Kirigami.ListSectionHeader {
+                    text: i18n("Filters")
+                    Layout.fillWidth: true
+                    visible: filtersModel.count > 0
+                }
+                Repeater {
+                    model: filtersModel
+                    delegate: SidebarItem {
+                        required property string name
+                        required property string query
+                        required property color color
+                        required property int taskCount
+
+                        text: name
+                        iconName: "view-filter"
+                        counter: taskCount
+                        onClicked: root.showPage(Qt.resolvedUrl("pages/TaskListPage.qml"), {
+                            mode: TaskModel.SavedFilter,
+                            filterQuery: query,
+                            pageTitle: name,
+                            pageIcon: "view-filter"
+                        })
+                    }
+                }
+
+                Kirigami.ListSectionHeader {
+                    text: i18n("Labels")
+                    Layout.fillWidth: true
+                    visible: labelsModel.count > 0
+                }
+                Repeater {
+                    model: labelsModel
+                    delegate: SidebarItem {
+                        required property string name
+                        required property color color
+                        required property int taskCount
+
+                        text: name
+                        iconName: "tag"
+                        tintIcon: true
+                        dotColor: color
+                        counter: taskCount
+                        onClicked: root.showPage(Qt.resolvedUrl("pages/TaskListPage.qml"), {
+                            mode: TaskModel.LabelTasks,
+                            labelName: name,
+                            pageTitle: name,
+                            pageIcon: "tag"
+                        })
+                    }
+                }
+
                 Item {
-                    id: resizeHandle
+                    Layout.preferredHeight: Kirigami.Units.gridUnit
+                }
+            }
 
+            // Drag handle on the trailing edge, like Dolphin's panel.
+            Item {
+                id: resizeHandle
+
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: Kirigami.Units.smallSpacing * 2
+
+                Kirigami.Separator {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: Kirigami.Units.smallSpacing * 2
+                    width: 1
+                }
 
-                    Kirigami.Separator {
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: 1
-                    }
-
-                    // Widens on hover so the target is findable without
-                    // making the divider itself heavy.
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Kirigami.Theme.highlightColor
-                        opacity: dragArea.containsMouse || dragArea.drag.active ? 0.4 : 0
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: Kirigami.Units.shortDuration
-                            }
+                // Keep the split cursor as the hover affordance. Painting
+                // a full-height highlight on hover looks like a scrollbar;
+                // reserve it for an active resize instead.
+                Rectangle {
+                    anchors.fill: parent
+                    color: Kirigami.Theme.highlightColor
+                    opacity: dragArea.pressed ? 0.4 : 0
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Kirigami.Units.shortDuration
                         }
-                    }
-
-                    MouseArea {
-                        id: dragArea
-
-                        anchors.fill: parent
-                        anchors.margins: -Kirigami.Units.smallSpacing
-                        hoverEnabled: true
-                        cursorShape: Qt.SplitHCursor
-                        // The drawer swallows drags that reach it, and the
-                        // press must not close a modal drawer either.
-                        preventStealing: true
-
-                        property real pressX: 0
-                        property int pressWidth: 0
-
-                        onPressed: mouse => {
-                            pressX = mapToItem(null, mouse.x, 0).x;
-                            pressWidth = globalDrawer.width;
-                        }
-
-                        onPositionChanged: mouse => {
-                            if (!pressed) {
-                                return;
-                            }
-                            const delta = mapToItem(null, mouse.x, 0).x - pressX;
-                            uiSettings.width = Math.max(
-                                root.minimumSidebarWidth,
-                                Math.min(root.maximumSidebarWidth, pressWidth + delta));
-                        }
-
-                        onDoubleClicked: uiSettings.width = Kirigami.Units.gridUnit * 15
                     }
                 }
+
+                MouseArea {
+                    id: dragArea
+
+                    anchors.fill: parent
+                    anchors.margins: -Kirigami.Units.smallSpacing
+                    hoverEnabled: true
+                    cursorShape: Qt.SplitHCursor
+                    // The drawer swallows drags that reach it, and the
+                    // press must not close a modal drawer either.
+                    preventStealing: true
+
+                    property real pressX: 0
+                    property int pressWidth: 0
+
+                    onPressed: mouse => {
+                        pressX = mapToItem(null, mouse.x, 0).x;
+                        pressWidth = globalDrawer.width;
+                    }
+
+                    onPositionChanged: mouse => {
+                        if (!pressed) {
+                            return;
+                        }
+                        const delta = mapToItem(null, mouse.x, 0).x - pressX;
+                        uiSettings.width = Math.max(
+                            root.minimumSidebarWidth,
+                            Math.min(root.maximumSidebarWidth, pressWidth + delta));
+                    }
+
+                    onDoubleClicked: uiSettings.width = Kirigami.Units.gridUnit * 15
+                }
             }
+        }
 
         footer: QQC2.ToolBar {
             visible: root.signedIn

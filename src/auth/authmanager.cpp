@@ -9,11 +9,20 @@
 #include <QDebug>
 #include <QDesktopServices>
 #include <QHostAddress>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QOAuth2AuthorizationCodeFlow>
 #include <QOAuthHttpServerReplyHandler>
 #include <QProcessEnvironment>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QUrlQuery>
+
+#include <limits>
 
 #include "version.h"
 
@@ -25,11 +34,13 @@ constexpr quint16 CallbackPort = 8788;
 const QString CallbackHost = QStringLiteral("127.0.0.1");
 const QString CallbackPath = QStringLiteral("/callback");
 
-const QString AuthorizeUrl = QStringLiteral("https://todoist.com/oauth/authorize");
-const QString TokenUrl = QStringLiteral("https://todoist.com/oauth/access_token");
+const QString AuthorizeUrl = QStringLiteral("https://app.todoist.com/oauth/authorize");
+const QString TokenUrl = QStringLiteral("https://api.todoist.com/oauth/access_token");
 
 // Enough to read and write tasks and to delete projects the user owns.
 const QString Scopes = QStringLiteral("data:read_write,data:delete");
+constexpr qint64 RefreshLeadTimeSeconds = 120;
+constexpr int MaxRefreshRetryDelayMs = 5 * 60 * 1000;
 
 /**
  * Resolves an OAuth client credential.
@@ -61,6 +72,8 @@ QString credential(const QString &envKey, const QString &configKey, const char *
 AuthManager::AuthManager(CredentialStore *store, QObject *parent)
     : QObject(parent)
     , m_store(store)
+    , m_network(new QNetworkAccessManager(this))
+    , m_refreshTimer(new QTimer(this))
 {
     m_clientId = credential(QStringLiteral("KTODO_CLIENT_ID"), QStringLiteral("ClientId"), KTODO_OAUTH_CLIENT_ID);
     m_clientSecret = credential(QStringLiteral("KTODO_CLIENT_SECRET"), QStringLiteral("ClientSecret"), KTODO_OAUTH_CLIENT_SECRET);
@@ -68,9 +81,15 @@ AuthManager::AuthManager(CredentialStore *store, QObject *parent)
     if (m_store) {
         // The token is looked up in the background, so the answer can arrive
         // after the UI has already bound to `authenticated`.
-        connect(m_store, &CredentialStore::tokenChanged, this, &AuthManager::authenticatedChanged);
+        connect(m_store, &CredentialStore::tokenChanged, this, [this] {
+            scheduleRefresh();
+            Q_EMIT authenticatedChanged();
+        });
         connect(m_store, &CredentialStore::resolvingChanged, this, &AuthManager::resolvingChanged);
     }
+
+    m_refreshTimer->setSingleShot(true);
+    connect(m_refreshTimer, &QTimer::timeout, this, [this] { refreshAccessToken(); });
 }
 
 AuthManager::~AuthManager() = default;
@@ -98,6 +117,150 @@ bool AuthManager::isResolving() const
 QString AuthManager::accessToken() const
 {
     return m_store ? m_store->accessToken() : QString();
+}
+
+void AuthManager::scheduleRefresh()
+{
+    if (!m_refreshTimer) {
+        return;
+    }
+
+    m_refreshTimer->stop();
+    if (!m_store || !m_store->hasRefreshToken()) {
+        return;
+    }
+
+    const QDateTime expiry = m_store->accessTokenExpiresAt();
+    if (!expiry.isValid()) {
+        // A provider may omit expires_in. In that case there is no safe point
+        // for a proactive refresh; a 401 will still trigger one and retry the
+        // affected request.
+        return;
+    }
+
+    const qint64 secondsUntilRefresh = QDateTime::currentDateTimeUtc().secsTo(expiry) - RefreshLeadTimeSeconds;
+    const qint64 milliseconds = qMax<qint64>(0, secondsUntilRefresh * 1000);
+    m_refreshTimer->start(static_cast<int>(qMin(milliseconds, qint64(std::numeric_limits<int>::max()))));
+}
+
+void AuthManager::scheduleRefreshRetry()
+{
+    if (!m_refreshTimer || !m_store || !m_store->hasRefreshToken()) {
+        return;
+    }
+
+    const int exponent = qMin(m_refreshFailures, 6);
+    const int delay = qMin(MaxRefreshRetryDelayMs, 5000 * (1 << exponent));
+    m_refreshTimer->start(delay);
+}
+
+void AuthManager::finishRefresh(RefreshResult result, const QString &error)
+{
+    m_refreshing = false;
+    const QVector<RefreshCallback> callbacks = std::move(m_refreshCallbacks);
+    m_refreshCallbacks.clear();
+
+    for (const RefreshCallback &callback : callbacks) {
+        if (callback) {
+            callback(result, error);
+        }
+    }
+}
+
+void AuthManager::refreshAccessToken(RefreshCallback callback)
+{
+    if (!m_store || !m_store->hasRefreshToken()) {
+        if (callback) {
+            callback(RefreshResult::NoRefreshToken, i18n("No refresh token is available."));
+        }
+        return;
+    }
+    if (!isConfigured()) {
+        if (callback) {
+            callback(RefreshResult::PermanentFailure, i18n("OAuth client credentials are not configured."));
+        }
+        return;
+    }
+
+    if (callback) {
+        m_refreshCallbacks.append(std::move(callback));
+    }
+    if (m_refreshing) {
+        return;
+    }
+    m_refreshing = true;
+    m_refreshTimer->stop();
+
+    const QString refreshToken = m_store->refreshToken();
+    QUrlQuery form;
+    form.addQueryItem(QStringLiteral("client_id"), m_clientId);
+    form.addQueryItem(QStringLiteral("client_secret"), m_clientSecret);
+    form.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("refresh_token"));
+    form.addQueryItem(QStringLiteral("refresh_token"), refreshToken);
+
+    QNetworkRequest request{QUrl(TokenUrl)};
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
+    request.setRawHeader("User-Agent", "ktodo/" KTODO_VERSION_STRING " (KDE)");
+
+    QNetworkReply *reply = m_network->post(request, form.toString(QUrl::FullyEncoded).toUtf8());
+    connect(reply, &QNetworkReply::finished, this, [this, reply, refreshToken] {
+        reply->deleteLater();
+
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray body = reply->readAll();
+        const QJsonObject json = QJsonDocument::fromJson(body).object();
+        const QString oauthError = json.value(QStringLiteral("error")).toString();
+        const QString description = json.value(QStringLiteral("error_description")).toString();
+        const QString error = description.isEmpty() ? oauthError : description;
+
+        // Signing out or completing a fresh authorization while this request
+        // was in flight makes its response stale. Never overwrite newer
+        // credentials with a response for the old, rotating refresh token.
+        if (!m_store || m_store->refreshToken() != refreshToken) {
+            finishRefresh(RefreshResult::NoRefreshToken, i18n("The saved session changed while refreshing."));
+            return;
+        }
+
+        const QString newAccessToken = json.value(QStringLiteral("access_token")).toString();
+        if (status >= 200 && status < 300 && !newAccessToken.isEmpty()) {
+            // Todoist rotates this value on each refresh. A grace-window retry
+            // can intentionally omit it, in which case retaining the saved
+            // replacement is the only safe thing to do.
+            const QString newRefreshToken = json.value(QStringLiteral("refresh_token")).toString();
+
+            QDateTime expiresAt;
+            const QJsonValue expiresIn = json.value(QStringLiteral("expires_in"));
+            bool validLifetime = false;
+            qint64 lifetimeSeconds = 0;
+            if (expiresIn.isDouble()) {
+                lifetimeSeconds = qRound64(expiresIn.toDouble());
+                validLifetime = lifetimeSeconds > 0;
+            } else if (expiresIn.isString()) {
+                lifetimeSeconds = expiresIn.toString().toLongLong(&validLifetime);
+                validLifetime = validLifetime && lifetimeSeconds > 0;
+            }
+            if (validLifetime) {
+                expiresAt = QDateTime::currentDateTimeUtc().addSecs(lifetimeSeconds);
+            }
+
+            m_store->setTokens(newAccessToken, newRefreshToken.isEmpty() ? refreshToken : newRefreshToken, expiresAt);
+            m_refreshFailures = 0;
+            setError({});
+            scheduleRefresh();
+            finishRefresh(RefreshResult::Refreshed);
+            return;
+        }
+
+        const bool transient = status == 0 || status == 429 || status >= 500;
+        if (transient) {
+            ++m_refreshFailures;
+            scheduleRefreshRetry();
+            finishRefresh(RefreshResult::TransientFailure, error.isEmpty() ? reply->errorString() : error);
+            return;
+        }
+
+        finishRefresh(RefreshResult::PermanentFailure, error.isEmpty() ? reply->errorString() : error);
+    });
 }
 
 void AuthManager::setBusy(bool busy)
@@ -161,7 +324,13 @@ void AuthManager::buildFlow()
             setError(i18n("Todoist did not return an access token."));
             return;
         }
-        m_store->setAccessToken(token);
+        // New Todoist OAuth applications issue a one-hour access token and a
+        // rotating refresh token. Qt exposes both after the code exchange;
+        // keep the full set together so a restart can refresh without sending
+        // the user through the browser again.
+        m_store->setTokens(token, m_flow->refreshToken(), m_flow->expirationAt());
+        m_refreshFailures = 0;
+        scheduleRefresh();
         setError({});
         Q_EMIT authenticatedChanged();
         Q_EMIT signedIn();
@@ -207,6 +376,9 @@ void AuthManager::cancel()
 
 void AuthManager::signOut()
 {
+    if (m_refreshTimer) {
+        m_refreshTimer->stop();
+    }
     if (m_store) {
         m_store->clear();
     }
@@ -221,6 +393,9 @@ void AuthManager::handleUnauthorized()
     // the sign-in page rather than retrying forever.
     if (m_store) {
         m_store->clear();
+    }
+    if (m_refreshTimer) {
+        m_refreshTimer->stop();
     }
     setError(i18n("Your Todoist session has expired. Please sign in again."));
     Q_EMIT authenticatedChanged();

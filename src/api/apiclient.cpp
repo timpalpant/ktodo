@@ -55,6 +55,11 @@ void ApiClient::quickAdd(const QString &text, Callback callback)
 
 void ApiClient::post(const QString &path, const QByteArray &body, Callback callback)
 {
+    postWithToken(path, body, false, std::move(callback));
+}
+
+void ApiClient::postWithToken(const QString &path, const QByteArray &body, bool retriedAfterRefresh, Callback callback)
+{
     const QString token = m_auth ? m_auth->accessToken() : QString();
     if (token.isEmpty()) {
         Result r;
@@ -72,13 +77,34 @@ void ApiClient::post(const QString &path, const QByteArray &body, Callback callb
 
     QNetworkReply *reply = m_network->post(request, body);
 
-    connect(reply, &QNetworkReply::finished, this, [reply, cb = std::move(callback)]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, path, body, retriedAfterRefresh, cb = std::move(callback)]() mutable {
         reply->deleteLater();
 
         Result result;
         result.httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
         const QByteArray data = reply->readAll();
+
+        if (result.httpStatus == 401 && !retriedAfterRefresh && m_auth) {
+            // Modern Todoist OAuth access tokens live for one hour. A 401 is
+            // the server's signal to refresh, then replay this one request
+            // with the replacement token; it is not grounds to discard a
+            // perfectly recoverable session.
+            m_auth->refreshAccessToken([this, path, body, cb = std::move(cb)](AuthManager::RefreshResult refresh, const QString &error) mutable {
+                if (refresh == AuthManager::RefreshResult::Refreshed) {
+                    postWithToken(path, body, true, std::move(cb));
+                    return;
+                }
+
+                Result refreshedResult;
+                refreshedResult.httpStatus = 401;
+                refreshedResult.error = error;
+                refreshedResult.retryable = refresh == AuthManager::RefreshResult::TransientFailure;
+                refreshedResult.unauthorized = !refreshedResult.retryable;
+                cb(refreshedResult);
+            });
+            return;
+        }
 
         if (reply->error() != QNetworkReply::NoError) {
             result.error = reply->errorString();

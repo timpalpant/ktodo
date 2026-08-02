@@ -116,8 +116,18 @@ public:
      */
     Q_INVOKABLE void commitMove(int index);
 
-    /// Only top-level tasks reorder; headers and sub-tasks stay put.
+    /// Every persisted task in a project list can start a hierarchy drag.
     Q_INVOKABLE bool isDraggable(int index) const;
+
+    /// Validates the current mouse drop proposal without mutating the model.
+    Q_INVOKABLE bool canDrop(int fromIndex, int insertIndex, int targetIndex, bool asSubtask) const;
+
+    /**
+     * Applies a hierarchy drop. A middle-zone drop makes @p fromIndex the last
+     * child of @p targetIndex; an edge-zone drop inserts it as a sibling at
+     * @p insertIndex, which naturally lets a child be promoted back out.
+     */
+    Q_INVOKABLE void commitDrop(int fromIndex, int insertIndex, int targetIndex, bool asSubtask);
 
     /**
      * Suppresses rebuilds while a drag is in progress, so a sync landing
@@ -139,10 +149,23 @@ private:
         bool hasChildren = false;
     };
 
+    struct Drop {
+        bool valid = false;
+        QString projectId;
+        QString sectionId;
+        QString parentId;
+        QString beforeId;
+    };
+
     void rebuild();
     TaskQuery buildQuery() const;
     /// Appends an item and its sub-tasks depth-first.
     void appendWithChildren(QVector<Row> &rows, const Todoist::Item &item, const QHash<QString, QVector<Todoist::Item>> &childrenByParent, int depth);
+    Drop describeDrop(int fromIndex, int insertIndex, int targetIndex, bool asSubtask) const;
+    bool isDescendantOf(const QString &candidateId, const QString &ancestorId) const;
+    /// Tallest visible descendant relative to @p rowIndex.
+    int subtreeHeight(int rowIndex) const;
+    QVector<QString> siblingIds(const Drop &drop, const QString &excludeId = {}) const;
 
     QVector<Row> m_rows;
     Mode m_mode = Today;

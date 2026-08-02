@@ -131,6 +131,7 @@ qt_add_qml_module(ktodo
         qml/pages/UpcomingPage.qml
         qml/pages/SearchPage.qml
         qml/pages/SettingsPage.qml
+        qml/pages/AboutPage.qml
         qml/pages/ProjectEditorPage.qml
         qml/components/TaskDelegate.qml
         qml/components/TaskEditor.qml

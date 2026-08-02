@@ -2,6 +2,8 @@
 
 #include <QObject>
 #include <QString>
+#include <QVector>
+#include <functional>
 #include <qqmlintegration.h>
 
 class CredentialStore;
@@ -9,6 +11,8 @@ class QJSEngine;
 class QQmlEngine;
 class QOAuth2AuthorizationCodeFlow;
 class QOAuthHttpServerReplyHandler;
+class QNetworkAccessManager;
+class QTimer;
 
 /**
  * Drives Todoist's OAuth2 authorization-code flow.
@@ -33,6 +37,14 @@ class AuthManager : public QObject
     Q_PROPERTY(QString redirectUri READ redirectUri CONSTANT)
 
 public:
+    enum class RefreshResult {
+        Refreshed,
+        NoRefreshToken,
+        PermanentFailure,
+        TransientFailure,
+    };
+    using RefreshCallback = std::function<void(RefreshResult result, const QString &error)>;
+
     explicit AuthManager(CredentialStore *store, QObject *parent = nullptr);
     ~AuthManager() override;
 
@@ -48,6 +60,15 @@ public:
     QString redirectUri() const;
 
     QString accessToken() const;
+
+    /**
+     * Exchanges the stored refresh token for a new access token.
+     *
+     * Concurrent callers share one exchange, which is essential because
+     * Todoist rotates refresh tokens and treats reuse outside its short retry
+     * grace period as a possible credential replay.
+     */
+    void refreshAccessToken(RefreshCallback callback = {});
 
     /// Opens the system browser to begin sign-in.
     Q_INVOKABLE void signIn();
@@ -71,13 +92,21 @@ private:
     void setBusy(bool busy);
     void setError(const QString &error);
     void buildFlow();
+    void scheduleRefresh();
+    void scheduleRefreshRetry();
+    void finishRefresh(RefreshResult result, const QString &error = {});
 
     CredentialStore *m_store = nullptr;
     QOAuth2AuthorizationCodeFlow *m_flow = nullptr;
     QOAuthHttpServerReplyHandler *m_replyHandler = nullptr;
+    QNetworkAccessManager *m_network = nullptr;
+    QTimer *m_refreshTimer = nullptr;
 
     QString m_clientId;
     QString m_clientSecret;
     QString m_lastError;
+    QVector<RefreshCallback> m_refreshCallbacks;
+    int m_refreshFailures = 0;
     bool m_busy = false;
+    bool m_refreshing = false;
 };

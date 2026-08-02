@@ -24,6 +24,11 @@ Kirigami.ScrollablePage {
     title: pageTitle
 
     titleDelegate: RowLayout {
+        // Match Kirigami's default title delegate: the header can shrink this
+        // custom title before it overflows page actions into the menu.
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        Layout.maximumWidth: implicitWidth
         spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Icon {
@@ -33,18 +38,28 @@ Kirigami.ScrollablePage {
             implicitHeight: Kirigami.Units.iconSizes.smallMedium
         }
 
-        Rectangle {
+        // Reserve the same leading slot as an ordinary page icon.  Centering
+        // the smaller project-colour dot in it aligns the marker and title
+        // with task rows without adding a conspicuous gap.
+        Item {
             visible: root.pageIcon === "" && root.projectId !== ""
-            implicitWidth: Math.round(Kirigami.Units.gridUnit * 0.7)
+            implicitWidth: Kirigami.Units.iconSizes.smallMedium
             implicitHeight: implicitWidth
-            radius: width / 2
-            color: root.projectInfo.colorValue ?? Kirigami.Theme.textColor
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: Math.round(Kirigami.Units.gridUnit * 0.7)
+                height: width
+                radius: width / 2
+                color: root.projectInfo.colorValue ?? Kirigami.Theme.textColor
+            }
         }
 
         Kirigami.Heading {
             text: root.title
             elide: Text.ElideRight
             Layout.fillWidth: true
+            Layout.minimumWidth: 0
         }
 
         Kirigami.Icon {
@@ -70,6 +85,10 @@ Kirigami.ScrollablePage {
         Kirigami.Action {
             text: i18nc("@action:button", "Add Task")
             icon.name: "list-add"
+            // Prefer this primary action over secondary page actions. If
+            // necessary, Kirigami reduces it to an icon button before moving
+            // it into the overflow menu.
+            displayHint: Kirigami.DisplayHint.KeepVisible
             enabled: !root.readOnly
             onTriggered: applicationWindow().quickAddTask(root.projectId)
         },
@@ -111,6 +130,10 @@ Kirigami.ScrollablePage {
         property int fromIndex: -1
         /// "Insert before this row"; count means after the last row.
         property int insertIndex: -1
+        /// A task's row under the pointer centre, or -1 at a list boundary.
+        property int targetIndex: -1
+        property bool asSubtask: false
+        property bool valid: false
     }
 
     ListView {
@@ -280,23 +303,34 @@ Kirigami.ScrollablePage {
                 onDragStarted: index => {
                     dragState.fromIndex = index;
                     dragState.insertIndex = index;
+                    dragState.targetIndex = -1;
+                    dragState.asSubtask = false;
+                    dragState.valid = false;
                     dragState.active = true;
                     // Pin the model so a sync landing mid-gesture cannot reset
                     // it and destroy the row being dragged.
                     taskModel.setReordering(true);
                 }
-                onDragMoved: insertIndex => dragState.insertIndex = insertIndex
-                onDragEnded: (fromIndex, toIndex) => {
+                onDragMoved: (insertIndex, targetIndex, asSubtask) => {
+                    dragState.insertIndex = insertIndex;
+                    dragState.targetIndex = targetIndex;
+                    dragState.asSubtask = asSubtask;
+                    dragState.valid = taskModel.canDrop(dragState.fromIndex, insertIndex, targetIndex, asSubtask);
+                }
+                onDragEnded: (fromIndex, insertIndex, targetIndex, asSubtask, moved, cancelled) => {
                     dragState.active = false;
-                    // The whole reorder happens here, once, so the list settles
-                    // in a single animated step instead of thrashing per pixel.
-                    if (toIndex >= 0 && toIndex !== fromIndex) {
-                        taskModel.moveRow(fromIndex, toIndex);
-                        taskModel.commitMove(toIndex);
+                    // The whole hierarchy change happens once, after release,
+                    // so the view never rebuilds beneath the active pointer.
+                    if (!cancelled && moved
+                            && taskModel.canDrop(fromIndex, insertIndex, targetIndex, asSubtask)) {
+                        taskModel.commitDrop(fromIndex, insertIndex, targetIndex, asSubtask);
                     }
                     taskModel.setReordering(false);
                     dragState.fromIndex = -1;
                     dragState.insertIndex = -1;
+                    dragState.targetIndex = -1;
+                    dragState.asSubtask = false;
+                    dragState.valid = false;
                 }
 
                 onEditRequested: applicationWindow().openTask(row.taskId)
@@ -325,12 +359,32 @@ Kirigami.ScrollablePage {
             id: dropIndicator
 
             z: 50
-            visible: dragState.active && y >= 0
-            x: 0
-            width: taskListView.width
-            height: Math.max(2, Math.round(Kirigami.Units.smallSpacing / 2))
+            visible: dragState.active && dragState.valid && y >= 0
+            x: {
+                if (!dragState.asSubtask || dragState.targetIndex < 0) {
+                    return 0;
+                }
+                const item = taskListView.itemAtIndex(dragState.targetIndex);
+                return item ? parent.mapFromItem(item, 0, 0).x : 0;
+            }
+            width: {
+                if (!dragState.asSubtask || dragState.targetIndex < 0) {
+                    return taskListView.width;
+                }
+                const item = taskListView.itemAtIndex(dragState.targetIndex);
+                return item ? item.width : taskListView.width;
+            }
+            height: {
+                if (dragState.asSubtask) {
+                    const item = taskListView.itemAtIndex(dragState.targetIndex);
+                    return item ? item.height : 0;
+                }
+                return Math.max(2, Math.round(Kirigami.Units.smallSpacing / 2));
+            }
             radius: height / 2
-            color: Kirigami.Theme.highlightColor
+            color: dragState.asSubtask ? "transparent" : Kirigami.Theme.highlightColor
+            border.width: dragState.asSubtask ? 2 : 0
+            border.color: Kirigami.Theme.highlightColor
 
             // Sits on the boundary the row will be inserted at, so it reads
             // the same whichever direction the drag came from.
@@ -338,12 +392,16 @@ Kirigami.ScrollablePage {
                 if (!dragState.active || dragState.insertIndex < 0) {
                     return -1;
                 }
+                if (dragState.asSubtask && dragState.targetIndex >= 0) {
+                    const target = taskListView.itemAtIndex(dragState.targetIndex);
+                    return target ? parent.mapFromItem(target, 0, 0).y : -1;
+                }
                 if (dragState.insertIndex >= taskListView.count) {
                     const last = taskListView.itemAtIndex(taskListView.count - 1);
-                    return last ? last.y + last.height - height / 2 : -1;
+                    return last ? parent.mapFromItem(last, 0, last.height).y - height / 2 : -1;
                 }
                 const item = taskListView.itemAtIndex(dragState.insertIndex);
-                return item ? item.y - height / 2 : -1;
+                return item ? parent.mapFromItem(item, 0, 0).y - height / 2 : -1;
             }
         }
 

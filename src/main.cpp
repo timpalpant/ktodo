@@ -71,16 +71,28 @@ int main(int argc, char *argv[])
     auto *notifier = new Notifier(repo, &app);
     auto *application = new Application(repo, sync, auth, &app);
 
-    // Start syncing as soon as there is a usable token, and stop when it goes.
-    QObject::connect(auth, &AuthManager::signedIn, sync, [sync, notifier] {
-        sync->resync();
-        sync->start();
-        notifier->start();
-    });
-    QObject::connect(auth, &AuthManager::signedOut, sync, [sync, notifier] {
-        sync->stop();
-        notifier->stop();
-    });
+    // A KWallet-backed credential arrives after startup. Track the actual
+    // authenticated state rather than only the interactive sign-in signal, or
+    // a persisted session reaches the Today page without ever starting sync.
+    bool syncEnabled = false;
+    const auto updateSyncState = [auth, sync, notifier, &syncEnabled] {
+        const bool shouldSync = auth->isAuthenticated();
+        if (shouldSync == syncEnabled) {
+            return;
+        }
+        syncEnabled = shouldSync;
+        if (shouldSync) {
+            sync->start();
+            notifier->start();
+        } else {
+            sync->stop();
+            notifier->stop();
+        }
+    };
+    QObject::connect(auth, &AuthManager::authenticatedChanged, &app, updateSyncState);
+    // A newly authorised user may be different from the previous one, so do
+    // not reuse an incremental sync token from the old local cache.
+    QObject::connect(auth, &AuthManager::signedIn, sync, [sync] { sync->resync(); });
 
     // Registered as typed QML singletons rather than context properties, so
     // the QML tooling can resolve every use of App, Auth and Sync.
@@ -98,10 +110,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (auth->isAuthenticated()) {
-        sync->start();
-        notifier->start();
-    }
+    updateSyncState();
 
     return app.exec();
 }

@@ -37,8 +37,8 @@ RowLayout {
                 : modelData.color
 
             // Square: the level is carried by colour and tooltip.
-            implicitWidth: Kirigami.Units.gridUnit * 1.8
-            implicitHeight: Kirigami.Units.gridUnit * 1.8
+            implicitWidth: Kirigami.Units.gridUnit * 1.6
+            implicitHeight: Kirigami.Units.gridUnit * 1.6
 
             onClicked: root.picked(modelData.level)
 
@@ -54,12 +54,18 @@ RowLayout {
                 border.color: flagButton.flagColor
             }
 
-            contentItem: Kirigami.Icon {
-                source: "flag"
-                color: flagButton.flagColor
-                isMask: true
-                implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                implicitHeight: Kirigami.Units.iconSizes.smallMedium
+            // AbstractButton stretches its contentItem to the full button.
+            // Wrap the icon so its actual flag glyph stays intentionally
+            // compact in the task-details dialog.
+            contentItem: Item {
+                Kirigami.Icon {
+                    anchors.centerIn: parent
+                    source: "flag"
+                    color: flagButton.flagColor
+                    isMask: true
+                    width: Kirigami.Units.iconSizes.small
+                    height: width
+                }
             }
 
             // The only place the level is spelled out.

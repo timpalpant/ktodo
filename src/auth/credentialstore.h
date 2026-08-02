@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDateTime>
 #include <QObject>
 #include <QString>
 
@@ -38,12 +39,20 @@ public:
 
     /// Never blocks. Empty until resolution finds a token.
     QString accessToken() const;
+    /// Empty for legacy Todoist OAuth applications that issue long-lived
+    /// access tokens instead of refresh tokens.
+    QString refreshToken() const;
+    /// Invalid when the authorization server did not give the token an expiry.
+    QDateTime accessTokenExpiresAt() const;
     bool hasToken() const;
+    bool hasRefreshToken() const;
 
     /// True while the wallet is still opening and the answer may yet change.
     bool isResolving() const;
 
-    void setAccessToken(const QString &token);
+    /// Stores the complete OAuth credential set as one value, so an access
+    /// token and Todoist's rotated refresh token can never get out of sync.
+    void setTokens(const QString &accessToken, const QString &refreshToken = {}, const QDateTime &expiresAt = {});
     void clear();
 
 Q_SIGNALS:
@@ -51,15 +60,26 @@ Q_SIGNALS:
     void resolvingChanged();
 
 private:
+    struct Tokens {
+        QString accessToken;
+        QString refreshToken;
+        QDateTime expiresAt;
+        QDateTime updatedAt;
+    };
+
     void onWalletOpened(bool ok);
     /// Applies a write or clear that arrived while the wallet was opening.
     void flushPending();
     void setResolving(bool resolving);
-    void setCached(const QString &token);
+    void setCached(const Tokens &tokens);
 
     QString fallbackPath() const;
-    QString readFallback() const;
-    void writeFallback(const QString &token);
+    Tokens readFallback() const;
+    bool writeFallback(const Tokens &tokens);
+    bool writeWallet(const Tokens &tokens);
+    static QString encode(const Tokens &tokens);
+    static Tokens decode(const QString &value);
+    static bool isNewer(const Tokens &candidate, const Tokens &than);
 
     KWallet::Wallet *m_wallet = nullptr;
     bool m_walletUsable = false;
@@ -70,5 +90,5 @@ private:
     enum class Pending { None, Write, Clear };
     Pending m_pending = Pending::None;
 
-    QString m_cached;
+    Tokens m_cached;
 };

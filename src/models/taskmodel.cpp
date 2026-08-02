@@ -248,8 +248,227 @@ bool TaskModel::isDraggable(int index) const
         return false;
     }
     const Row &row = m_rows.at(index);
-    // Dragging a sub-task out of its parent would silently re-parent it.
-    return !row.isHeader && row.depth == 0 && !Repository::instance()->isLocalId(row.item.id);
+    return !row.isHeader && !Repository::instance()->isLocalId(row.item.id);
+}
+
+TaskModel::Drop TaskModel::describeDrop(int fromIndex, int insertIndex, int targetIndex, bool asSubtask) const
+{
+    Drop drop;
+    if ((m_mode != ProjectTasks && m_mode != Inbox) || fromIndex < 0 || fromIndex >= m_rows.size()) {
+        return drop;
+    }
+
+    const Row &sourceRow = m_rows.at(fromIndex);
+    const Item &source = sourceRow.item;
+    if (sourceRow.isHeader || source.id.isEmpty() || Repository::instance()->isLocalId(source.id)) {
+        return drop;
+    }
+
+    auto setScopeFrom = [&drop](const Item &item) {
+        drop.projectId = item.projectId;
+        drop.sectionId = item.sectionId;
+        drop.parentId = item.parentId;
+    };
+
+    const int sourceSubtreeHeight = subtreeHeight(fromIndex);
+
+    const auto findNextSibling = [this, fromIndex, &drop](int start) {
+        for (int i = start; i < m_rows.size(); ++i) {
+            const Row &candidateRow = m_rows.at(i);
+            const Item &candidate = candidateRow.item;
+            if (candidateRow.isHeader || i == fromIndex || candidate.id.isEmpty() || Repository::instance()->isLocalId(candidate.id)
+                || candidate.projectId != drop.projectId || candidate.parentId != drop.parentId
+                || (drop.parentId.isEmpty() && candidate.sectionId != drop.sectionId)) {
+                continue;
+            }
+            return candidate.id;
+        }
+        return QString{};
+    };
+
+    if (asSubtask) {
+        if (targetIndex < 0 || targetIndex >= m_rows.size()) {
+            return drop;
+        }
+        const Row &targetRow = m_rows.at(targetIndex);
+        const Item &target = targetRow.item;
+        if (targetRow.isHeader || target.id.isEmpty() || Repository::instance()->isLocalId(target.id) || target.id == source.id
+            || target.projectId != source.projectId || targetRow.depth + 1 + sourceSubtreeHeight > 4 || isDescendantOf(target.id, source.id)) {
+            return drop;
+        }
+
+        drop.projectId = target.projectId;
+        drop.sectionId = target.sectionId;
+        drop.parentId = target.id;
+        drop.valid = true;
+        return drop;
+    }
+
+    insertIndex = qBound(0, insertIndex, m_rows.size());
+
+    // A section-header edge always creates a root task. Looking only at the
+    // preceding flattened row would otherwise accidentally use the last
+    // subtask's parent as the destination scope.
+    if (targetIndex >= 0 && targetIndex < m_rows.size() && m_rows.at(targetIndex).isHeader) {
+        const Row &targetRow = m_rows.at(targetIndex);
+        drop.projectId = source.projectId;
+        drop.parentId.clear();
+        if (insertIndex <= targetIndex) {
+            // The upper half of a header belongs to the end of the preceding
+            // section. Before the first header is the unsectioned root list.
+            for (int i = targetIndex - 1; i >= 0; --i) {
+                if (m_rows.at(i).isHeader) {
+                    drop.sectionId = m_rows.at(i).headerId;
+                    break;
+                }
+            }
+        } else {
+            // The lower half is the beginning of this header's section.
+            drop.sectionId = targetRow.headerId;
+            drop.beforeId = findNextSibling(targetIndex + 1);
+        }
+        drop.valid = sourceSubtreeHeight <= 4;
+        return drop;
+    }
+
+    // Edge zones on an actual task use that task's sibling scope rather than
+    // whichever flattened child happens to follow it. This is what makes the
+    // lower edge of a parent mean "after this whole task" instead of the
+    // surprising "inside this task".
+    if (targetIndex >= 0 && targetIndex < m_rows.size() && targetIndex != fromIndex) {
+        const Row &targetRow = m_rows.at(targetIndex);
+        const Item &target = targetRow.item;
+        if (!targetRow.isHeader && !target.id.isEmpty() && !Repository::instance()->isLocalId(target.id) && target.projectId == source.projectId
+            && targetRow.depth + sourceSubtreeHeight <= 4 && !isDescendantOf(target.id, source.id)) {
+            setScopeFrom(target);
+            if (insertIndex <= targetIndex) {
+                drop.beforeId = target.id;
+            } else {
+                // Find the next direct sibling, skipping any of the target's
+                // descendants in the flattened ListView.
+                for (int i = targetIndex + 1; i < m_rows.size(); ++i) {
+                    const Row &candidateRow = m_rows.at(i);
+                    const Item &candidate = candidateRow.item;
+                    if (candidateRow.isHeader || candidate.id == source.id || Repository::instance()->isLocalId(candidate.id)
+                        || candidate.projectId != target.projectId || candidate.parentId != target.parentId
+                        || (target.parentId.isEmpty() && candidate.sectionId != target.sectionId)) {
+                        continue;
+                    }
+                    drop.beforeId = candidate.id;
+                    break;
+                }
+            }
+            drop.valid = true;
+            return drop;
+        }
+        // A concrete task target that cannot accept the source must not fall
+        // through to a guessed parent/section. That could turn a visibly
+        // invalid drop into an unexpected re-parenting operation.
+        return Drop{};
+    }
+
+    // Outside a realised row (above the first or below the last) keep the
+    // task in its current sibling scope. Choosing the nearest flattened row
+    // here is unsafe: at the bottom of a project that row can be somebody
+    // else's child, which silently turns a root task into a subtask.
+    setScopeFrom(source);
+    drop.beforeId = findNextSibling(insertIndex);
+    drop.valid = true;
+    return drop;
+}
+
+bool TaskModel::isDescendantOf(const QString &candidateId, const QString &ancestorId) const
+{
+    if (candidateId.isEmpty() || ancestorId.isEmpty()) {
+        return false;
+    }
+
+    QHash<QString, QString> parents;
+    for (const Row &row : m_rows) {
+        if (!row.isHeader) {
+            parents.insert(row.item.id, row.item.parentId);
+        }
+    }
+
+    QString current = candidateId;
+    QSet<QString> seen;
+    while (!current.isEmpty() && !seen.contains(current)) {
+        if (current == ancestorId) {
+            return true;
+        }
+        seen.insert(current);
+        current = parents.value(current);
+    }
+    return false;
+}
+
+int TaskModel::subtreeHeight(int rowIndex) const
+{
+    if (rowIndex < 0 || rowIndex >= m_rows.size() || m_rows.at(rowIndex).isHeader) {
+        return 0;
+    }
+
+    const int parentDepth = m_rows.at(rowIndex).depth;
+    int height = 0;
+    for (int i = rowIndex + 1; i < m_rows.size(); ++i) {
+        const Row &row = m_rows.at(i);
+        if (row.isHeader || row.depth <= parentDepth) {
+            break;
+        }
+        height = qMax(height, row.depth - parentDepth);
+    }
+    return height;
+}
+
+QVector<QString> TaskModel::siblingIds(const Drop &drop, const QString &excludeId) const
+{
+    QVector<QString> ids;
+    for (const Row &row : m_rows) {
+        if (row.isHeader || row.item.id == excludeId || Repository::instance()->isLocalId(row.item.id) || row.item.projectId != drop.projectId
+            || row.item.parentId != drop.parentId) {
+            continue;
+        }
+        // Root tasks are additionally scoped by their section. A child task
+        // inherits its parent's section, so parent_id is sufficient there.
+        if (drop.parentId.isEmpty() && row.item.sectionId != drop.sectionId) {
+            continue;
+        }
+        ids.append(row.item.id);
+    }
+    return ids;
+}
+
+bool TaskModel::canDrop(int fromIndex, int insertIndex, int targetIndex, bool asSubtask) const
+{
+    return describeDrop(fromIndex, insertIndex, targetIndex, asSubtask).valid;
+}
+
+void TaskModel::commitDrop(int fromIndex, int insertIndex, int targetIndex, bool asSubtask)
+{
+    const Drop drop = describeDrop(fromIndex, insertIndex, targetIndex, asSubtask);
+    if (!drop.valid || fromIndex < 0 || fromIndex >= m_rows.size()) {
+        return;
+    }
+
+    const Item source = m_rows.at(fromIndex).item;
+    QVector<QString> order = siblingIds(drop, source.id);
+    int position = drop.beforeId.isEmpty() ? order.size() : order.indexOf(drop.beforeId);
+    if (position < 0) {
+        position = order.size();
+    }
+    order.insert(position, source.id);
+
+    Repository *repo = Repository::instance();
+    if (source.projectId != drop.projectId || source.sectionId != drop.sectionId || source.parentId != drop.parentId) {
+        repo->moveItem(source.id, drop.projectId, drop.sectionId, drop.parentId);
+    }
+
+    QVector<QPair<QString, int>> orders;
+    orders.reserve(order.size());
+    for (qsizetype i = 0; i < order.size(); ++i) {
+        orders.append({order.at(i), static_cast<int>(i)});
+    }
+    repo->reorderItems(orders);
 }
 
 void TaskModel::moveRow(int from, int to)

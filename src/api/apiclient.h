@@ -49,6 +49,7 @@ public:
 
 private:
     void post(const QString &path, const QByteArray &body, Callback callback);
+    void postWithToken(const QString &path, const QByteArray &body, bool retriedAfterRefresh, Callback callback);
 
     AuthManager *m_auth = nullptr;
     QNetworkAccessManager *m_network = nullptr;
