@@ -80,6 +80,11 @@
   </provides>
 
   <releases>
+    <release version="1.0.2" date="2026-08-03">
+      <description>
+        <p>Add native Debian and RPM release packages.</p>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-08-03">
       <description>
         <p>Package OAuth client credentials in release artifacts.</p>

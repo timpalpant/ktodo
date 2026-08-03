@@ -50,8 +50,8 @@ flatpak run io.github.timpalpant.ktodo
 
 ### Arch Linux
 
-Each release attaches a prebuilt `*.pkg.tar.zst`, if you would rather not
-build locally:
+Download `ktodo-*.pkg.tar.zst` from the
+[latest release](https://github.com/timpalpant/ktodo/releases), then:
 
 ```sh
 sudo pacman -U ktodo-*.pkg.tar.zst
