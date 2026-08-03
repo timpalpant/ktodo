@@ -136,6 +136,63 @@
     color: var(--muted);
     font-size: .9rem;
   }
+  .screenshot-trigger {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+  }
+  .screenshot-trigger:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+  }
+  .screenshot-dialog {
+    width: min(96vw, 1280px);
+    max-width: calc(100vw - 32px);
+    max-height: 96vh;
+    margin: auto;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .screenshot-dialog::backdrop { background: rgb(0 0 0 / .72); }
+  .screenshot-dialog form {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 8px;
+  }
+  .screenshot-dialog__close {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 1.4rem;
+    line-height: 1;
+  }
+  .screenshot-dialog__close:hover { border-color: var(--accent); }
+  .screenshot-dialog__close:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .screenshot-dialog img {
+    display: block;
+    max-width: 100%;
+    max-height: calc(90vh - 5rem);
+    margin: 0 auto;
+    object-fit: contain;
+  }
+  .screenshot-dialog p {
+    margin: 8px 4px 0;
+    color: var(--muted);
+    text-align: center;
+  }
 
   pre {
     background: var(--code-bg);
@@ -205,11 +262,15 @@
     <h2>Screenshots</h2>
     <div class="screenshots">
       <figure>
-        <img src="screenshots/today.png" alt="KTodo Today view with projects and saved filters">
+        <button class="screenshot-trigger" type="button" aria-haspopup="dialog" aria-label="Enlarge Today view" data-caption="Today view">
+          <img src="screenshots/today.png" alt="KTodo Today view with projects and saved filters">
+        </button>
         <figcaption>Today view</figcaption>
       </figure>
       <figure>
-        <img src="screenshots/task.png" alt="KTodo task editor with schedule, labels, and assignee">
+        <button class="screenshot-trigger" type="button" aria-haspopup="dialog" aria-label="Enlarge task editor" data-caption="Task editor">
+          <img src="screenshots/task.png" alt="KTodo task editor with schedule, labels, and assignee">
+        </button>
         <figcaption>Task editor</figcaption>
       </figure>
     </div>
@@ -328,6 +389,46 @@ cmake --build build
     <p>© 2026 the KTodo authors · GPL-3.0-or-later</p>
   </div>
 </footer>
+
+<dialog class="screenshot-dialog" id="screenshot-dialog" aria-labelledby="screenshot-dialog-caption">
+  <form method="dialog">
+    <button class="screenshot-dialog__close" type="submit" aria-label="Close enlarged screenshot">&times;</button>
+  </form>
+  <img alt="">
+  <p id="screenshot-dialog-caption"></p>
+</dialog>
+
+<script>
+  (() => {
+    const dialog = document.querySelector('#screenshot-dialog');
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+
+    const image = dialog.querySelector('img');
+    const caption = dialog.querySelector('#screenshot-dialog-caption');
+    const closeButton = dialog.querySelector('.screenshot-dialog__close');
+    let trigger;
+
+    document.querySelectorAll('.screenshot-trigger').forEach((button) => {
+      button.addEventListener('click', () => {
+        const thumbnail = button.querySelector('img');
+        trigger = button;
+        image.src = thumbnail.currentSrc || thumbnail.src;
+        image.alt = thumbnail.alt;
+        caption.textContent = button.dataset.caption || thumbnail.alt;
+        dialog.showModal();
+        closeButton.focus();
+      });
+    });
+
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener('close', () => {
+      image.removeAttribute('src');
+      trigger?.focus();
+    });
+  })();
+</script>
 
 </body>
 </html>
