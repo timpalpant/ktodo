@@ -62,7 +62,7 @@ Delegates.RoundedItemDelegate {
     signal scheduleRequested
     signal dragStarted(int index)
     signal dragMoved(int insertIndex, int targetIndex, bool asSubtask)
-    signal dragEnded(int fromIndex, int insertIndex, int targetIndex, bool asSubtask, bool moved, bool cancelled)
+    signal dragEnded(int fromIndex, int insertIndex, int targetIndex, bool asSubtask, bool moved, bool canceled)
 
     // Guards against the row being re-tapped while the fade-out plays.
     property bool completing: false
@@ -105,7 +105,7 @@ Delegates.RoundedItemDelegate {
 
         // A mouse drag begins from the task's normal content, while the
         // controls above it (checkbox, links, schedule/delete) retain their
-        // direct click behaviour. A simple release still opens the editor.
+        // direct click behavior. A simple release still opens the editor.
         TaskDragHandle {
             id: taskDrag
 
@@ -120,7 +120,7 @@ Delegates.RoundedItemDelegate {
 
             onDragStarted: index => root.dragStarted(index)
             onDragMoved: (insertIndex, targetIndex, asSubtask) => root.dragMoved(insertIndex, targetIndex, asSubtask)
-            onDragEnded: (fromIndex, insertIndex, targetIndex, asSubtask, moved, cancelled) => root.dragEnded(fromIndex, insertIndex, targetIndex, asSubtask, moved, cancelled)
+            onDragEnded: (fromIndex, insertIndex, targetIndex, asSubtask, moved, canceled) => root.dragEnded(fromIndex, insertIndex, targetIndex, asSubtask, moved, canceled)
             onDragOffsetChanged: offset => root.dragOffsetY = offset
             onClicked: root.editRequested()
         }
@@ -138,7 +138,7 @@ Delegates.RoundedItemDelegate {
                 accent: root.priorityColor.a > 0 ? root.priorityColor : Kirigami.Theme.textColor
 
                 // The title's line box is forced to this same height below, so
-                // aligning both to the top puts them on a shared centre line
+                // aligning both to the top puts them on a shared center line
                 // whether or not the row carries a description.
                 Layout.alignment: Qt.AlignTop
 

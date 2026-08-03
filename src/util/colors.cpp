@@ -41,7 +41,7 @@ QColor priorityColor(int apiPriority)
     case 2:
         return QColor::fromRgb(0x246fe0); // p3
     default:
-        return QColor(); // p4 uses the theme's text colour
+        return QColor(); // p4 uses the theme's text color
     }
 }
 

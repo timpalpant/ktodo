@@ -296,7 +296,7 @@ void AuthManager::buildFlow()
     m_flow->setTokenUrl(QUrl(TokenUrl));
     m_flow->setClientIdentifier(m_clientId);
     m_flow->setClientIdentifierSharedKey(m_clientSecret);
-    // setScope() is deprecated in favour of requested scope tokens, but that
+    // setScope() is deprecated in favor of requested scope tokens, but that
     // API joins tokens with spaces per RFC 6749 while Todoist expects a
     // comma-separated list. The literal form is the one that works here.
     QT_WARNING_PUSH

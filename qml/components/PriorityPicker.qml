@@ -36,7 +36,7 @@ RowLayout {
                 ? Kirigami.Theme.disabledTextColor
                 : modelData.color
 
-            // Square: the level is carried by colour and tooltip.
+            // Square: the level is carried by color and tooltip.
             implicitWidth: Kirigami.Units.gridUnit * 1.6
             implicitHeight: Kirigami.Units.gridUnit * 1.6
 

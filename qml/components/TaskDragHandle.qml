@@ -34,7 +34,7 @@ Item {
      * direction-independent, which is what the drop indicator wants.
      */
     signal dragMoved(int insertIndex, int targetIndex, bool asSubtask)
-    signal dragEnded(int fromIndex, int insertIndex, int targetIndex, bool asSubtask, bool moved, bool cancelled)
+    signal dragEnded(int fromIndex, int insertIndex, int targetIndex, bool asSubtask, bool moved, bool canceled)
     /// Offset applied by the owner as a visual transform, never to ListView's
     /// layout-managed y property.
     signal dragOffsetChanged(real offset)
@@ -81,14 +81,14 @@ Item {
         property real viewportBottom: 0
 
         /**
-         * First row whose midpoint lies below @p centre — i.e. the row the
+         * First row whose midpoint lies below @p center — i.e. the row the
          * dragged item would be inserted in front of.
          *
          * ListView.indexAt() does not reliably identify the visual row while
          * the source carries a transform, so compare against realised rows in
          * the ListView's content coordinate system instead.
          */
-        function insertIndexFor(centre) {
+        function insertIndexFor(center) {
             for (let i = 0; i < root.listView.count; ++i) {
                 if (i === startIndex) {
                     continue;   // Its geometry is not in content space.
@@ -98,14 +98,14 @@ Item {
                     continue;   // Not realised; it is off-screen either way.
                 }
                 const itemY = root.listView.contentItem.mapFromItem(item, 0, 0).y;
-                if (centre < itemY + item.height / 2) {
+                if (center < itemY + item.height / 2) {
                     return i;
                 }
             }
             return root.listView.count;
         }
 
-        function updateDropTarget(centre) {
+        function updateDropTarget(center) {
             let hovered = -1;
             let nest = false;
             for (let i = 0; i < root.listView.count; ++i) {
@@ -118,11 +118,11 @@ Item {
                 }
                 const top = root.listView.contentItem.mapFromItem(item, 0, 0).y;
                 const bottom = top + item.height;
-                if (centre >= top && centre <= bottom) {
+                if (center >= top && center <= bottom) {
                     hovered = i;
                     // The middle is an explicit, forgiving nesting target.
                     // Its top/bottom quarters remain sibling drop zones.
-                    const relative = (centre - top) / item.height;
+                    const relative = (center - top) / item.height;
                     nest = relative >= 0.25 && relative <= 0.75;
                     break;
                 }
@@ -179,10 +179,10 @@ Item {
             const visualTop = Math.max(viewportTop,
                                        Math.min(maximumTop, pointerY - grabOffset));
             root.dragOffsetChanged(visualTop - baseItemY);
-            const centre = visualTop + root.listItem.height / 2;
+            const center = visualTop + root.listItem.height / 2;
 
-            const index = insertIndexFor(centre);
-            updateDropTarget(centre);
+            const index = insertIndexFor(center);
+            updateDropTarget(center);
             moved = dragging;
             if (index !== insertIndex || targetIndex !== root.lastTargetIndex
                     || asSubtask !== root.lastAsSubtask) {
@@ -196,7 +196,7 @@ Item {
         onReleased: finishDrag(false)
         onCanceled: finishDrag(true)
 
-        function finishDrag(cancelled) {
+        function finishDrag(canceled) {
             if (!gestureActive) {
                 return;
             }
@@ -206,8 +206,8 @@ Item {
             }
             gestureActive = false;
 
-            root.dragEnded(startIndex, insertIndex, targetIndex, asSubtask, moved, cancelled);
-            if (!cancelled && !moved) {
+            root.dragEnded(startIndex, insertIndex, targetIndex, asSubtask, moved, canceled);
+            if (!canceled && !moved) {
                 root.clicked();
             }
 

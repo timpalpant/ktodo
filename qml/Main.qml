@@ -167,8 +167,8 @@ Kirigami.ApplicationWindow {
     globalDrawer: Kirigami.GlobalDrawer {
         id: globalDrawer
 
-        // Chrome-coloured like Dolphin's places panel. GlobalDrawer otherwise
-        // uses the View colour set when it is non-modal, which makes the
+        // Chrome-colored like Dolphin's places panel. GlobalDrawer otherwise
+        // uses the View color set when it is non-modal, which makes the
         // sidebar the same white as the task list beside it.
         Kirigami.Theme.colorSet: Kirigami.Theme.Window
         Kirigami.Theme.inherit: false

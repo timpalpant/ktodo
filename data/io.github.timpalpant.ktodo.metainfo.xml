@@ -44,12 +44,7 @@
     <name>Timothy Palpant</name>
   </developer>
 
-  <!--
-    Flathub requires at least one screenshot, and Discover uses them for the
-    listing. These must be hosted somewhere reachable, so they point at the
-    project website; add the images to docs/screenshots/ and they will be
-    published with the site. Captures must not contain real account data.
-  -->
+  <!-- Screenshots are hosted with the project website. -->
   <screenshots>
     <screenshot type="default">
       <image>https://timpalpant.github.io/ktodo/screenshots/today.png</image>

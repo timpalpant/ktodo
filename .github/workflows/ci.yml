@@ -125,7 +125,7 @@ jobs:
         run: |
           useradd -m builder
           chown -R builder .
-          for dir in packaging/aur/*/; do
+          for dir in packaging/arch/*/; do
             echo "== $dir"
             bash -n "$dir/PKGBUILD"
             su builder -c "cd '$dir' && makepkg --printsrcinfo > /dev/null"
@@ -135,8 +135,8 @@ jobs:
       # SKIP belongs only to ktodo-git, whose source is a git checkout.
       - name: Check the release tarball is pinned by digest
         run: |
-          if grep -q "^sha256sums=('SKIP')" packaging/aur/ktodo/PKGBUILD; then
-            echo "::error::packaging/aur/ktodo/PKGBUILD downloads a tarball without checking it"
+          if grep -q "^sha256sums=('SKIP')" packaging/arch/ktodo/PKGBUILD; then
+            echo "::error::packaging/arch/ktodo/PKGBUILD downloads a tarball without checking it"
             exit 1
           fi
 
@@ -190,11 +190,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder
           flatpak remote-add --if-not-exists --user \
-            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+            kde-runtime https://dl.flathub.org/repo/flathub.flatpakrepo
 
       - name: Install the KDE runtime
         run: |
-          flatpak install --user --noninteractive flathub \
+          flatpak install --user --noninteractive kde-runtime \
             org.kde.Platform//6.11 org.kde.Sdk//6.11
 
       - name: Cache the flatpak-builder state
@@ -205,7 +205,7 @@ jobs:
           restore-keys: flatpak-builder-
 
       - name: Build
-        # The CI manifest builds this checkout; the tagged one is for Flathub.
+        # The CI manifest builds this checkout; the tagged one is for releases.
         run: |
           # download.kde.org selects a public mirror, which occasionally
           # times out on hosted runners. Retry transient source/build failures

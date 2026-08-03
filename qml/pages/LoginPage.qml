@@ -32,7 +32,7 @@ Kirigami.Page {
         }
 
         QQC2.Label {
-            text: i18n("Your browser will open so you can authorise this application. "
+            text: i18n("Your browser will open so you can authorize this application. "
                      + "Your password is never seen by it.")
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter

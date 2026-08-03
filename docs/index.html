@@ -118,6 +118,25 @@
   .features strong { display: block; margin-bottom: 4px; }
   .features span { color: var(--muted); font-size: .95rem; }
 
+  .screenshots {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .screenshots figure {
+    margin: 0;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .screenshots img { display: block; width: 100%; height: auto; }
+  .screenshots figcaption {
+    padding: 10px 14px;
+    color: var(--muted);
+    font-size: .9rem;
+  }
+
   pre {
     background: var(--code-bg);
     border: 1px solid var(--border);
@@ -172,8 +191,8 @@
         src="https://img.shields.io/github/v/release/timpalpant/ktodo?include_prereleases&amp;label=release&amp;logo=github"
         alt="Latest release"></a>
       <a href="https://github.com/timpalpant/ktodo/blob/master/LICENSE"><img
-        src="https://img.shields.io/badge/licence-GPL--3.0--or--later-blue"
-        alt="Licence"></a>
+        src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"
+        alt="License"></a>
     </div>
 
     <div class="actions">
@@ -182,12 +201,19 @@
     </div>
   </header>
 
-  <!--
-    A screenshot belongs here. None is included yet: the captures taken during
-    development show real account data. Drop a sanitised image into
-    docs/screenshots/ and reference it from this spot.
-  -->
-
+  <section>
+    <h2>Screenshots</h2>
+    <div class="screenshots">
+      <figure>
+        <img src="screenshots/today.png" alt="KTodo Today view with projects and saved filters">
+        <figcaption>Today view</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/task.png" alt="KTodo task editor with schedule, labels, and assignee">
+        <figcaption>Task editor</figcaption>
+      </figure>
+    </div>
+  </section>
 
   <section>
     <h2>What it does</h2>
@@ -240,11 +266,19 @@
 
     <h3>2. Install the app</h3>
 
-    <p>From Flathub — also how it appears in KDE Discover:</p>
-<pre><code>flatpak install flathub io.github.timpalpant.ktodo</code></pre>
+    <p>
+      Download <code>ktodo.flatpak</code> from the
+      <a href="https://github.com/timpalpant/ktodo/releases">latest release</a>,
+      then:
+    </p>
+<pre><code>flatpak install --user ktodo.flatpak
+flatpak run io.github.timpalpant.ktodo</code></pre>
 
-    <p>On Arch Linux and derivatives:</p>
-<pre><code>yay -S ktodo        # or ktodo-git for the development branch</code></pre>
+    <p>
+      On Arch Linux and derivatives, download the matching
+      <code>ktodo-*.pkg.tar.zst</code> from the release, then:
+    </p>
+<pre><code>sudo pacman -U ktodo-*.pkg.tar.zst</code></pre>
 
     <p>Or build from source:</p>
 <pre><code>git clone https://github.com/timpalpant/ktodo.git

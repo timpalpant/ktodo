@@ -1,8 +1,8 @@
 /*
- * Tests for the Todoist colour palette mapping.
+ * Tests for the Todoist color palette mapping.
  *
  * Colours are identified by name across the web, mobile and desktop clients,
- * so a project must keep the same colour everywhere. A typo in the table would
+ * so a project must keep the same color everywhere. A typo in the table would
  * be invisible in review but obvious to a user, hence pinning the values.
  */
 
@@ -48,7 +48,7 @@ void ColorsTest::knownNames()
 void ColorsTest::unknownNameFallsBackToCharcoal()
 {
     // The server may add palette entries at any time; an unknown one must show
-    // a sensible colour rather than an invalid QColor that paints black.
+    // a sensible color rather than an invalid QColor that paints black.
     const QColor charcoal = Colors::fromTodoistName(QStringLiteral("charcoal"));
 
     QCOMPARE(Colors::fromTodoistName(QStringLiteral("chartreuse_surprise")), charcoal);
@@ -88,7 +88,7 @@ void ColorsTest::priorityColors_data()
     QTest::newRow("p1 urgent") << 4 << true;
     QTest::newRow("p2") << 3 << true;
     QTest::newRow("p3") << 2 << true;
-    // P4 deliberately has no colour so the row uses the theme's text colour.
+    // P4 deliberately has no color so the row uses the theme's text color.
     QTest::newRow("p4 none") << 1 << false;
     QTest::newRow("out of range low") << 0 << false;
     QTest::newRow("out of range high") << 9 << false;

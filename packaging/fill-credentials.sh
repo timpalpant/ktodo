@@ -21,8 +21,8 @@ cd "$(dirname "$0")/.."
 
 FLATPAK='packaging/flatpak/io.github.timpalpant.ktodo.yml'
 FLATPAK_CI='packaging/flatpak/io.github.timpalpant.ktodo.ci.yml'
-PKGBUILD='packaging/aur/ktodo/PKGBUILD'
-PKGBUILD_GIT='packaging/aur/ktodo-git/PKGBUILD'
+PKGBUILD='packaging/arch/ktodo/PKGBUILD'
+PKGBUILD_GIT='packaging/arch/ktodo-git/PKGBUILD'
 
 ALL_FILES=("$FLATPAK" "$FLATPAK_CI" "$PKGBUILD" "$PKGBUILD_GIT")
 

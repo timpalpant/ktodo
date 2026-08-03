@@ -5,18 +5,18 @@
 #include <QStringList>
 
 /**
- * Todoist identifies colours by name ("berry_red", "charcoal", ...).
+ * Todoist identifies colors by name ("berry_red", "charcoal", ...).
  * These map onto the palette the web and mobile clients use so a project
- * keeps the same colour across devices.
+ * keeps the same color across devices.
  */
 namespace Colors {
 
 QColor fromTodoistName(const QString &name);
 
-/// Colour for an API priority (1 = none .. 4 = urgent).
+/// Color for an API priority (1 = none .. 4 = urgent).
 QColor priorityColor(int apiPriority);
 
-/// Names offered in the project/label colour picker, in palette order.
+/// Names offered in the project/label color picker, in palette order.
 QStringList paletteNames();
 
 } // namespace Colors

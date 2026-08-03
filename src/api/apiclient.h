@@ -13,7 +13,7 @@ class QNetworkAccessManager;
  * Thin transport over Todoist's unified API v1.
  *
  * Only the /sync endpoint is used: it carries both incremental reads and
- * batched writes, which is what makes offline-first behaviour possible.
+ * batched writes, which is what makes offline-first behavior possible.
  * (The former sync/v9 and rest/v2 endpoints now return HTTP 410.)
  */
 class ApiClient : public QObject

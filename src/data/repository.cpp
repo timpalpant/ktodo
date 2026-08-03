@@ -603,7 +603,7 @@ QVector<Item> Repository::items(const TaskQuery &query) const
         break;
 
     case TaskQuery::Today:
-        // Overdue tasks belong in Today, matching Todoist's own behaviour.
+        // Overdue tasks belong in Today, matching Todoist's own behavior.
         where = QStringLiteral("WHERE checked = 0 AND due_date IS NOT NULL AND due_date <= ? "
                                "ORDER BY due_date ASC, priority DESC, child_order ASC");
         binds << today + QStringLiteral("T23:59:59");

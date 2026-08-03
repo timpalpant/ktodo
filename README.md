@@ -2,9 +2,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/timpalpant/ktodo/ci.yml?branch=master&label=CI&logo=github)](https://github.com/timpalpant/ktodo/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/timpalpant/ktodo?include_prereleases&label=release&logo=github)](https://github.com/timpalpant/ktodo/releases)
-[![Flathub](https://img.shields.io/flathub/v/io.github.timpalpant.ktodo?logo=flathub)](https://flathub.org/apps/io.github.timpalpant.ktodo)
-[![AUR](https://img.shields.io/aur/version/ktodo?logo=archlinux)](https://aur.archlinux.org/packages/ktodo)
-[![Licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
 A native Todoist client for KDE Plasma, built with Kirigami and Qt Quick.
 
@@ -13,11 +11,12 @@ A native Todoist client for KDE Plasma, built with Kirigami and Qt Quick.
 > KTodo is an unofficial client. It is not affiliated with, endorsed by, or
 > supported by Doist, the makers of Todoist. A Todoist account is required.
 
-> [!NOTE]
-> The Flathub and AUR badges will read "not found" until the first release is
-> submitted to those registries. Building from source works today.
+## Screenshots
 
-<!-- Screenshot goes here: docs/screenshots/today.png -->
+<p align="center">
+  <img src="docs/screenshots/today.png" alt="KTodo Today view" width="44%">
+  <img src="docs/screenshots/task.png" alt="KTodo task editor" width="48%">
+</p>
 
 ## Features
 
@@ -41,8 +40,12 @@ A native Todoist client for KDE Plasma, built with Kirigami and Qt Quick.
 
 ### Flatpak
 
+Download `ktodo.flatpak` from the
+[latest release](https://github.com/timpalpant/ktodo/releases), then:
+
 ```sh
-flatpak install flathub io.github.timpalpant.ktodo
+flatpak install --user ktodo.flatpak
+flatpak run io.github.timpalpant.ktodo
 ```
 
 ### Arch Linux
@@ -61,9 +64,10 @@ To build a package from a checkout, before any release exists:
 sudo pacman -U dist/ktodo-*.pkg.tar.zst
 ```
 
-That script uses the real AUR `PKGBUILD` with its source repointed at the
+That script uses the release `PKGBUILD` with its source repointed at the
 current commit, so it exercises the same dependency list, build flags and
-`check()` step that AUR users get. It is what CI and the release workflow run.
+`check()` step as the released Arch package. It is what CI and the release
+workflow run.
 
 ### From source
 
@@ -103,7 +107,7 @@ ctest --test-dir build --output-on-failure
 
 The test suite covers the parts with real logic and no GUI or network
 dependency: the saved-filter evaluator, the due-date helpers, the Todoist
-colour palette and the rich-text renderer. It is headless and touches neither
+color palette and the rich-text renderer. It is headless and touches neither
 the network nor a Todoist account, so it is safe to run anywhere.
 
 ```sh
@@ -121,7 +125,7 @@ or the values compiled in.
 are injected into the QML context at runtime and cannot be resolved statically.
 Every other check stays on, and CI treats warnings as failures.
 
-## Licence
+## License
 
 GPL-3.0-or-later.
 

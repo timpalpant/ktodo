@@ -62,9 +62,9 @@ dist/
 *.pkg.tar.xz
 *.flatpak
 .flatpak-builder/
-packaging/aur/*/src/
-packaging/aur/*/pkg/
-packaging/aur/*/*.tar.gz
+packaging/arch/*/src/
+packaging/arch/*/pkg/
+packaging/arch/*/*.tar.gz
 
 # Secrets
 .env

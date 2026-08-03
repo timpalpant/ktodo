@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 
     KLocalizedString::setApplicationDomain(QByteArrayLiteral("ktodo"));
 
-    // Honour the user's Plasma style; fall back to Breeze elsewhere.
+    // Honor the user's Plasma style; fall back to Breeze elsewhere.
     if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE")) {
         QQuickStyle::setStyle(QStringLiteral("org.kde.desktop"));
     }
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
         }
     };
     QObject::connect(auth, &AuthManager::authenticatedChanged, &app, updateSyncState);
-    // A newly authorised user may be different from the previous one, so do
+    // A newly authorized user may be different from the previous one, so do
     // not reuse an incremental sync token from the old local cache.
     QObject::connect(auth, &AuthManager::signedIn, sync, [sync] { sync->resync(); });
 

@@ -1,7 +1,7 @@
 # Maintainer: Timothy Palpant <tim@palpant.us>
 #
 # Development package: builds the current main branch. Publish this one as
-# `ktodo-git` on the AUR; use ./PKGBUILD for tagged releases.
+# `ktodo-git` is the development package; use ./PKGBUILD for tagged releases.
 
 pkgname=ktodo-git
 _pkgname=ktodo

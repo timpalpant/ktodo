@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
 # Builds a pacman package (*.pkg.tar.zst) from the current checkout using the
-# same PKGBUILD that is published to the AUR.
+# same PKGBUILD used for release packages.
 #
 #   packaging/build-arch-package.sh            # -> dist/*.pkg.tar.zst
 #   packaging/build-arch-package.sh --outdir X # write somewhere else
 #
-# The AUR PKGBUILD downloads a release tarball, which does not exist yet while
+# The release PKGBUILD downloads a release tarball, which does not exist yet while
 # a release is being cut. So the source array is repointed at a tarball made
 # from this checkout with `git archive` and the checksum recomputed. Everything
 # else -- the dependency list, the build flags, the check() step -- is exactly
-# what AUR users will run, which is the point of building it this way rather
+# what an Arch user will run, which is the point of building it this way rather
 # than calling cmake directly.
 #
 # makepkg refuses to run as root, so under CI (which runs as root in the Arch
@@ -74,7 +74,7 @@ tarball="$PKGNAME-$version.tar.gz"
 git archive --format=tar.gz --prefix="$PKGNAME-$version/" \
     -o "$workdir/$tarball" HEAD
 
-cp "packaging/aur/$PKGNAME/PKGBUILD" "$workdir/PKGBUILD"
+cp "packaging/arch/$PKGNAME/PKGBUILD" "$workdir/PKGBUILD"
 
 # Point the source array at the local tarball instead of the release URL, and
 # recompute the checksum to match it.

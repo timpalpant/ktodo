@@ -10,7 +10,7 @@
  * that explicitly: terms that need to resolve a project, section, collaborator
  * or parent task return false instead of dereferencing it. That keeps these
  * tests free of SQLite and of any account state, and it also pins the
- * behaviour the app relies on before the first sync completes.
+ * behavior the app relies on before the first sync completes.
  */
 
 #include "query/filterquery.h"

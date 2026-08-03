@@ -1,12 +1,11 @@
-# Flatpak manifest for KTodo.
+# Tagged Flatpak manifest for KTodo.
 #
 # Build locally with:
-#   flatpak install -y flathub org.kde.Platform//6.11 org.kde.Sdk//6.11
+#   # Install the matching KDE Platform and SDK first.
 #   flatpak-builder --user --install --force-clean build-flatpak \
 #       packaging/flatpak/io.github.timpalpant.ktodo.yml
 #
-# For Flathub, this file is submitted to flathub/flathub as
-# io.github.timpalpant.ktodo.yml with the ktodo source pinned to a tag.
+# This manifest pins the KTodo source to a release tag.
 
 id: io.github.timpalpant.ktodo
 
@@ -82,7 +81,7 @@ modules:
       - -DKTODO_OAUTH_CLIENT_ID=
       - -DKTODO_OAUTH_CLIENT_SECRET=
     sources:
-      # Flathub submissions must pin a tag or commit rather than a branch.
+      # Tagged release manifests must pin a tag or commit rather than a branch.
       - type: git
         url: https://github.com/timpalpant/ktodo.git
         tag: v1.0.1

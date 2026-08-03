@@ -4,7 +4,7 @@ import QtQuick.Layouts
 
 import org.kde.kirigami as Kirigami
 
-/// Small date label used on task rows, coloured by urgency.
+/// Small date label used on task rows, colored by urgency.
 RowLayout {
     id: root
 

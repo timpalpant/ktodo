@@ -46,7 +46,7 @@ FormCard.FormCardPage {
     }
 
     FormCard.FormHeader {
-        title: i18nc("@title:group", "Colour")
+        title: i18nc("@title:group", "Color")
     }
 
     FormCard.FormCard {
@@ -70,7 +70,11 @@ FormCard.FormCardPage {
 
                         onClicked: root.chosenColor = modelData
 
-                        QQC2.ToolTip.text: modelData
+                        // Todoist's API spells this color identifier "grey";
+                        // keep the user-facing label in American English.
+                        QQC2.ToolTip.text: modelData === "grey"
+                            ? i18nc("@info:tooltip", "Gray")
+                            : modelData
                         QQC2.ToolTip.visible: hovered
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 

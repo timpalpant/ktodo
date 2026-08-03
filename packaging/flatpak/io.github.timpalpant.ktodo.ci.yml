@@ -1,8 +1,8 @@
 # Same as io.github.timpalpant.ktodo.yml, but builds the working tree instead
 # of a published tag. Used by CI, by the release workflow and for local builds;
-# the Flathub submission uses the tagged manifest.
+# the tagged release uses the tagged manifest.
 #
-#   flatpak install -y flathub org.kde.Platform//6.11 org.kde.Sdk//6.11
+#   # Install the matching KDE Platform and SDK first.
 #   flatpak-builder --user --install --force-clean build-flatpak \
 #       packaging/flatpak/io.github.timpalpant.ktodo.ci.yml
 

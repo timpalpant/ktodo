@@ -39,7 +39,7 @@ Kirigami.ScrollablePage {
         }
 
         // Reserve the same leading slot as an ordinary page icon.  Centering
-        // the smaller project-colour dot in it aligns the marker and title
+        // the smaller project-color dot in it aligns the marker and title
         // with task rows without adding a conspicuous gap.
         Item {
             visible: root.pageIcon === "" && root.projectId !== ""
@@ -130,7 +130,7 @@ Kirigami.ScrollablePage {
         property int fromIndex: -1
         /// "Insert before this row"; count means after the last row.
         property int insertIndex: -1
-        /// A task's row under the pointer centre, or -1 at a list boundary.
+        /// A task's row under the pointer center, or -1 at a list boundary.
         property int targetIndex: -1
         property bool asSubtask: false
         property bool valid: false
@@ -317,11 +317,11 @@ Kirigami.ScrollablePage {
                     dragState.asSubtask = asSubtask;
                     dragState.valid = taskModel.canDrop(dragState.fromIndex, insertIndex, targetIndex, asSubtask);
                 }
-                onDragEnded: (fromIndex, insertIndex, targetIndex, asSubtask, moved, cancelled) => {
+                onDragEnded: (fromIndex, insertIndex, targetIndex, asSubtask, moved, canceled) => {
                     dragState.active = false;
                     // The whole hierarchy change happens once, after release,
                     // so the view never rebuilds beneath the active pointer.
-                    if (!cancelled && moved
+                    if (!canceled && moved
                             && taskModel.canDrop(fromIndex, insertIndex, targetIndex, asSubtask)) {
                         taskModel.commitDrop(fromIndex, insertIndex, targetIndex, asSubtask);
                     }
