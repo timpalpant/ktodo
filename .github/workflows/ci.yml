@@ -191,7 +191,9 @@ jobs:
       - name: Install flatpak
         run: |
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
+          # flatpak-builder 1.2 on Ubuntu 22.04 invokes the legacy composer
+          # directly, but does not depend on its separate package.
+          sudo apt-get install -y flatpak flatpak-builder appstream-compose
           flatpak remote-add --if-not-exists --user \
             flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
