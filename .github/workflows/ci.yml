@@ -207,9 +207,21 @@ jobs:
       - name: Build
         # The CI manifest builds this checkout; the tagged one is for Flathub.
         run: |
-          flatpak-builder --user --disable-rofiles-fuse --force-clean \
-            --repo=flatpak-repo build-flatpak \
-            packaging/flatpak/io.github.timpalpant.ktodo.ci.yml
+          # download.kde.org selects a public mirror, which occasionally
+          # times out on hosted runners. Retry transient source/build failures
+          # but still fail the job after three unsuccessful attempts.
+          for attempt in 1 2 3; do
+            if flatpak-builder --user --disable-rofiles-fuse --force-clean \
+              --repo=flatpak-repo build-flatpak \
+              packaging/flatpak/io.github.timpalpant.ktodo.ci.yml; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              exit 1
+            fi
+            echo "Flatpak build attempt $attempt failed; retrying in 15 seconds."
+            sleep 15
+          done
 
       - name: Create the bundle
         run: |

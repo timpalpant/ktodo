@@ -47,6 +47,11 @@ cleanup:
   - /share/man
   - '*.a'
   - '*.la'
+  # The Flatpak export tool on the hosted builders has no SVG image loader.
+  # KTodo also installs a 128px PNG under the same icon name, which remains
+  # available to the desktop and to AppStream after this native-only asset is
+  # removed from the Flatpak payload.
+  - /share/icons/hicolor/scalable/apps/io.github.timpalpant.ktodo.svg
 
 modules:
   # Not part of the KDE runtime, so it is bundled. Keep the version in step

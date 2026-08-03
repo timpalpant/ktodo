@@ -168,9 +168,20 @@ jobs:
         # source. The Flathub manifest pins the tag instead and is submitted
         # separately.
         run: |
-          flatpak-builder --user --disable-rofiles-fuse --force-clean \
-            --repo=flatpak-repo build-flatpak \
-            packaging/flatpak/io.github.timpalpant.ktodo.ci.yml
+          # The archive download is served by a selected public KDE mirror;
+          # retry a transient mirror timeout before treating it as a failure.
+          for attempt in 1 2 3; do
+            if flatpak-builder --user --disable-rofiles-fuse --force-clean \
+              --repo=flatpak-repo build-flatpak \
+              packaging/flatpak/io.github.timpalpant.ktodo.ci.yml; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              exit 1
+            fi
+            echo "Flatpak build attempt $attempt failed; retrying in 15 seconds."
+            sleep 15
+          done
           flatpak build-bundle flatpak-repo ktodo.flatpak \
             io.github.timpalpant.ktodo
           sha256sum ktodo.flatpak > ktodo.flatpak.sha256
