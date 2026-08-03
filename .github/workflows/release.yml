@@ -40,6 +40,17 @@ jobs:
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Require the package OAuth credentials
+        # Release artifacts must work without each user registering a separate
+        # Todoist application. These repository secrets are stamped only into
+        # the runner's temporary package inputs, never committed to Git.
+        env:
+          KTODO_CLIENT_ID: ${{ secrets.KTODO_CLIENT_ID }}
+          KTODO_CLIENT_SECRET: ${{ secrets.KTODO_CLIENT_SECRET }}
+        run: |
+          : "${KTODO_CLIENT_ID:?KTODO_CLIENT_ID repository secret is required for release builds}"
+          : "${KTODO_CLIENT_SECRET:?KTODO_CLIENT_SECRET repository secret is required for release builds}"
+
       - name: Build and test
         run: |
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
@@ -128,6 +139,12 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: Stamp OAuth credentials into the package input
+        env:
+          KTODO_CLIENT_ID: ${{ secrets.KTODO_CLIENT_ID }}
+          KTODO_CLIENT_SECRET: ${{ secrets.KTODO_CLIENT_SECRET }}
+        run: packaging/fill-credentials.sh
+
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
@@ -150,6 +167,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Stamp OAuth credentials into the Flatpak manifest
+        env:
+          KTODO_CLIENT_ID: ${{ secrets.KTODO_CLIENT_ID }}
+          KTODO_CLIENT_SECRET: ${{ secrets.KTODO_CLIENT_SECRET }}
+        run: packaging/fill-credentials.sh
 
       - name: Install flatpak
         run: |

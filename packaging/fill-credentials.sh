@@ -58,16 +58,26 @@ fi
 : "${KTODO_CLIENT_ID:?set KTODO_CLIENT_ID, or put it in .env}"
 : "${KTODO_CLIENT_SECRET:?set KTODO_CLIENT_SECRET, or put it in .env}"
 
+# These values are inserted into sed replacement text below. Escape its
+# replacement metacharacters so a valid OAuth value containing &, |, or a
+# backslash is kept byte-for-byte rather than changing the package recipe.
+escape_sed_replacement() {
+    printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'
+}
+
+oauth_client_id_escaped="$(escape_sed_replacement "$KTODO_CLIENT_ID")"
+oauth_client_secret_escaped="$(escape_sed_replacement "$KTODO_CLIENT_SECRET")"
+
 # Only the client id and secret are ever stamped in. The access token in .env
 # is a personal credential for one account and must never reach a package.
 sed -i -E \
-    "s|^(      - -DKTODO_OAUTH_CLIENT_ID=).*|\1${KTODO_CLIENT_ID}|; \
-     s|^(      - -DKTODO_OAUTH_CLIENT_SECRET=).*|\1${KTODO_CLIENT_SECRET}|" \
+    "s|^(      - -DKTODO_OAUTH_CLIENT_ID=).*|\1${oauth_client_id_escaped}|; \
+     s|^(      - -DKTODO_OAUTH_CLIENT_SECRET=).*|\1${oauth_client_secret_escaped}|" \
     "$FLATPAK" "$FLATPAK_CI"
 
 sed -i -E \
-    "s|^(_oauth_client_id=).*|\1'${KTODO_CLIENT_ID}'|; \
-     s|^(_oauth_client_secret=).*|\1'${KTODO_CLIENT_SECRET}'|" \
+    "s|^(_oauth_client_id=).*|\1'${oauth_client_id_escaped}'|; \
+     s|^(_oauth_client_secret=).*|\1'${oauth_client_secret_escaped}'|" \
     "$PKGBUILD" "$PKGBUILD_GIT"
 
 echo "Stamped credentials into:"
