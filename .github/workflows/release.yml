@@ -147,7 +147,9 @@ jobs:
   flatpak:
     name: Flatpak bundle
     needs: verify
-    runs-on: ubuntu-latest
+    # Keep the release composer aligned with CI; see ci.yml for why this uses
+    # the compatible AppStream version from Ubuntu 22.04.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 

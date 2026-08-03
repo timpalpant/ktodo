@@ -36,6 +36,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/configure-pages@v5
+        with:
+          # First release can create the Pages site; later runs are idempotent.
+          enablement: true
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@v3

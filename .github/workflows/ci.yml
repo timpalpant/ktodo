@@ -164,7 +164,10 @@ jobs:
 
   flatpak:
     name: Flatpak
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04's AppStream 1.0 compositor rejects this otherwise valid
+    # icon during metadata composition. The host only composes metadata; the
+    # application itself still builds against the KDE 6.11 SDK below.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
