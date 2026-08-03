@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(QT_MIN_VERSION 6.6.0)
+set(QT_MIN_VERSION 6.8.0)
 set(KF_MIN_VERSION 6.0.0)
 
 find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
@@ -27,7 +27,7 @@ find_package(KF6Kirigami ${KF_MIN_VERSION} REQUIRED)
 include(GNUInstallDirs)
 include(CTest)
 
-qt_standard_project_setup(REQUIRES 6.6)
+qt_standard_project_setup(REQUIRES 6.8)
 set(CMAKE_AUTORCC ON)
 
 # QML lives in qml/pages and qml/components; generate a qmldir per directory.
@@ -174,3 +174,22 @@ install(FILES data/icons/io.github.timpalpant.ktodo.png DESTINATION ${CMAKE_INST
 if(TARGET KF6::I18n)
     ki18n_install(po)
 endif()
+
+# The CI and release workflows build native DEB and RPM packages from the
+# normal install tree, so keep their metadata next to the install rules.
+set(CPACK_PACKAGE_NAME "ktodo")
+set(CPACK_PACKAGE_VENDOR "Timothy Palpant")
+set(CPACK_PACKAGE_CONTACT "Timothy Palpant <tim@palpant.us>")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Native Todoist client for KDE Plasma")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
+set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+    "qml6-module-qtcore, qml6-module-qtquick, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-org-kde-kirigami, qml6-module-org-kde-kirigamiaddons-components, qml6-module-org-kde-kirigamiaddons-datetime, qml6-module-org-kde-kirigamiaddons-delegates, qml6-module-org-kde-kirigamiaddons-formcard")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
+set(CPACK_RPM_PACKAGE_GROUP "Applications/Utility")
+set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtdeclarative, kf6-kirigami, kf6-kirigami-addons")
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+include(CPack)

@@ -284,7 +284,11 @@ void AuthManager::buildFlow()
     }
 
     m_replyHandler = new QOAuthHttpServerReplyHandler(QHostAddress(CallbackHost), CallbackPort, this);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+    // On older Qt versions, the constructor's loopback address already
+    // determines the callback host. Qt 6.9 added this explicit override.
     m_replyHandler->setCallbackHost(CallbackHost);
+#endif
     m_replyHandler->setCallbackPath(CallbackPath);
     m_replyHandler->setCallbackText(i18n("<html><body style='font-family:sans-serif;text-align:center;padding:3em'>"
                                          "<h2>Signed in to Todoist</h2>"
@@ -293,7 +297,11 @@ void AuthManager::buildFlow()
 
     m_flow = new QOAuth2AuthorizationCodeFlow(this);
     m_flow->setAuthorizationUrl(QUrl(AuthorizeUrl));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
     m_flow->setTokenUrl(QUrl(TokenUrl));
+#else
+    m_flow->setAccessTokenUrl(QUrl(TokenUrl));
+#endif
     m_flow->setClientIdentifier(m_clientId);
     m_flow->setClientIdentifierSharedKey(m_clientSecret);
     // setScope() is deprecated in favor of requested scope tokens, but that
@@ -341,7 +349,11 @@ void AuthManager::buildFlow()
         setError(i18n("Sign-in failed (error %1). Please try again.", static_cast<int>(error)));
     });
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
     connect(m_flow, &QAbstractOAuth2::serverReportedErrorOccurred, this, [this](const QString &error, const QString &description, const QUrl &) {
+#else
+    connect(m_flow, &QAbstractOAuth2::error, this, [this](const QString &error, const QString &description, const QUrl &) {
+#endif
         setBusy(false);
         setError(description.isEmpty() ? error : description);
     });

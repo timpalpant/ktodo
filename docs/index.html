@@ -280,6 +280,18 @@ flatpak run io.github.timpalpant.ktodo</code></pre>
     </p>
 <pre><code>sudo pacman -U ktodo-*.pkg.tar.zst</code></pre>
 
+    <p>
+      On Debian, Ubuntu and derivatives, download <code>ktodo_*.deb</code>
+      from the release, then:
+    </p>
+<pre><code>sudo apt install ./ktodo_*.deb</code></pre>
+
+    <p>
+      On Fedora and other RPM-based distributions, download
+      <code>ktodo-*.rpm</code> from the release, then:
+    </p>
+<pre><code>sudo dnf install ./ktodo-*.rpm</code></pre>
+
     <p>Or build from source:</p>
 <pre><code>git clone https://github.com/timpalpant/ktodo.git
 cd ktodo
@@ -288,7 +300,7 @@ cmake --build build
 ./build/ktodo</code></pre>
 
     <p>
-      You will need Qt&nbsp;6.6+, KDE Frameworks&nbsp;6 and
+      You will need Qt&nbsp;6.8+, KDE Frameworks&nbsp;6 and
       <code>kirigami-addons</code>. The full dependency list is in the
       <a href="https://github.com/timpalpant/ktodo#building">README</a>.
     </p>

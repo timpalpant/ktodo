@@ -162,6 +162,90 @@ jobs:
           path: dist/*.pkg.tar.zst
           if-no-files-found: error
 
+  deb:
+    name: Debian package
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates cmake ninja-build g++ git dpkg-dev file gettext \
+            qt6-base-dev qt6-declarative-dev qt6-networkauth-dev qt6-tools-dev \
+            libkf6coreaddons-dev libkf6i18n-dev libkf6config-dev \
+            libkf6notifications-dev libkf6wallet-dev libkf6iconthemes-dev \
+            libkf6windowsystem-dev libkirigami-dev kirigami-addons-dev
+
+      - uses: actions/checkout@v4
+
+      - name: Build the package
+        env:
+          KTODO_CLIENT_ID: ${{ secrets.KTODO_CLIENT_ID }}
+          KTODO_CLIENT_SECRET: ${{ secrets.KTODO_CLIENT_SECRET }}
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=OFF \
+            -DKTODO_OAUTH_CLIENT_ID="$KTODO_CLIENT_ID" \
+            -DKTODO_OAUTH_CLIENT_SECRET="$KTODO_CLIENT_SECRET"
+          cmake --build build
+          cpack --config build/CPackConfig.cmake -G DEB -B "$PWD/dist"
+          for package in dist/*.deb; do sha256sum "$package" > "$package.sha256"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ktodo-deb-package
+          path: |
+            dist/*.deb
+            dist/*.deb.sha256
+          if-no-files-found: error
+
+  rpm:
+    name: RPM package
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf -y install \
+            cmake ninja-build gcc-c++ git rpm-build gettext \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtnetworkauth-devel \
+            qt6-qttools-devel \
+            kf6-kcoreaddons-devel kf6-ki18n-devel kf6-kconfig-devel \
+            kf6-knotifications-devel kf6-kwallet-devel kf6-kiconthemes-devel \
+            kf6-kwindowsystem-devel kf6-kirigami-devel \
+            kf6-kirigami-addons-devel
+          dnf clean all
+
+      - uses: actions/checkout@v4
+
+      - name: Build the package
+        env:
+          KTODO_CLIENT_ID: ${{ secrets.KTODO_CLIENT_ID }}
+          KTODO_CLIENT_SECRET: ${{ secrets.KTODO_CLIENT_SECRET }}
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=OFF \
+            -DKTODO_OAUTH_CLIENT_ID="$KTODO_CLIENT_ID" \
+            -DKTODO_OAUTH_CLIENT_SECRET="$KTODO_CLIENT_SECRET"
+          cmake --build build
+          cpack --config build/CPackConfig.cmake -G RPM -B "$PWD/dist"
+          for package in dist/*.rpm; do sha256sum "$package" > "$package.sha256"; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ktodo-rpm-package
+          path: |
+            dist/*.rpm
+            dist/*.rpm.sha256
+          if-no-files-found: error
+
   flatpak:
     name: Flatpak
     runs-on: ubuntu-latest

@@ -69,9 +69,25 @@ current commit, so it exercises the same dependency list, build flags and
 `check()` step as the released Arch package. It is what CI and the release
 workflow run.
 
+### Debian / Ubuntu
+
+Download `ktodo_*.deb` from the [latest release](https://github.com/timpalpant/ktodo/releases), then:
+
+```sh
+sudo apt install ./ktodo_*.deb
+```
+
+### Fedora / RPM-based distributions
+
+Download `ktodo-*.rpm` from the [latest release](https://github.com/timpalpant/ktodo/releases), then:
+
+```sh
+sudo dnf install ./ktodo-*.rpm
+```
+
 ### From source
 
-Requires Qt 6.6+, KDE Frameworks 6 and `kirigami-addons`.
+Requires Qt 6.8+, KDE Frameworks 6 and `kirigami-addons`.
 
 ```sh
 cmake -B build -G Ninja
