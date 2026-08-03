@@ -47,11 +47,7 @@ flatpak install flathub io.github.timpalpant.ktodo
 
 ### Arch Linux
 
-```sh
-yay -S ktodo        # or ktodo-git for the development branch
-```
-
-Each release also attaches a prebuilt `*.pkg.tar.zst`, if you would rather not
+Each release attaches a prebuilt `*.pkg.tar.zst`, if you would rather not
 build locally:
 
 ```sh
@@ -86,9 +82,6 @@ pacman -S --needed qt6-base qt6-declarative qt6-networkauth kirigami \
     kirigami-addons ki18n kconfig knotifications kwallet kiconthemes \
     kcoreaddons kwindowsystem cmake ninja
 ```
-
-`extra-cmake-modules` is not required; each framework is located individually
-so the build works on distributions without the KF6 umbrella package.
 
 ## Setup
 
@@ -127,86 +120,6 @@ or the values compiled in.
 `.qmllint.ini` disables only `UnqualifiedAccess`, because the `i18n*` functions
 are injected into the QML context at runtime and cannot be resolved statically.
 Every other check stays on, and CI treats warnings as failures.
-
-## Packaging and CI
-
-| Path | What it is |
-| --- | --- |
-| `.github/workflows/ci.yml` | Build and test on Arch, qmllint, AppStream and desktop-entry validation, clang-format, PKGBUILD lint, Flatpak build |
-| `.github/workflows/release.yml` | On a `v*` tag: verifies the tag against the project and AppStream versions, then builds the source tarball, the Arch package and the Flatpak bundle and drafts a release |
-| `.github/workflows/pages.yml` | Deploys `docs/` to GitHub Pages on the same tag |
-| `packaging/flatpak/io.github.timpalpant.ktodo.yml` | Flathub manifest, builds a tagged release |
-| `packaging/flatpak/io.github.timpalpant.ktodo.ci.yml` | Same, but builds the working tree; used by CI and the release |
-| `packaging/aur/ktodo/PKGBUILD` | AUR release package |
-| `packaging/aur/ktodo-git/PKGBUILD` | AUR development package |
-| `packaging/build-arch-package.sh` | Builds a `*.pkg.tar.zst` from a checkout using the AUR PKGBUILD |
-| `packaging/fill-credentials.sh` | Stamps the OAuth client id and secret into the packaging files |
-| `docs/` | The website |
-
-The app id is `io.github.timpalpant.ktodo`, matching the project's GitHub Pages
-domain as Flathub requires. Submit the Flatpak manifest to
-[flathub/flathub](https://github.com/flathub/flathub) as a pull request against
-the `new-pr` branch. KDE Discover lists Flathub applications, so no separate
-submission is needed. Flathub requires at least one screenshot; the URLs in the
-metainfo point at `docs/screenshots/`.
-
-### Cutting a release
-
-1. Bump `project(ktodo VERSION ...)` in `CMakeLists.txt` and `pkgver` in
-   `packaging/aur/ktodo/PKGBUILD`.
-2. Add a `<release version="X.Y.Z">` entry to the AppStream metainfo, and bump
-   the `tag:` in the Flathub manifest.
-3. Push a `vX.Y.Z` tag.
-
-The release workflow refuses the tag unless it matches the version in
-`CMakeLists.txt` and has a matching `<release>` entry, then builds three
-artifacts — source tarball, Arch package, Flatpak bundle — each with a
-`.sha256`, and drafts a GitHub release. It also prints the `sha256sums=(...)`
-line for the AUR PKGBUILD; paste that in before publishing the draft.
-
-The website deploys from the same tag.
-
-### OAuth credentials in a package
-
-A desktop application is a *public client* under
-[RFC 8252](https://datatracker.ietf.org/doc/html/rfc8252) and cannot keep a
-secret: anything compiled into the binary or written into a manifest is
-recoverable. The client id and secret identify the build, not the user, and
-grant no access on their own — a token is issued only after the user approves
-it in a browser, and only against the registered redirect URI.
-
-Two consequences are worth understanding. Anyone holding the pair can publish
-an app that shows your registered name on the consent screen, and rate limits
-and revocation are per-client, so abuse affects every user of the package.
-
-Credentials live in `.env`, which is gitignored, and are stamped into the
-packaging files when cutting a release:
-
-```sh
-packaging/fill-credentials.sh           # from .env, or from the environment
-packaging/fill-credentials.sh --check   # report which files are filled
-packaging/fill-credentials.sh --clear   # restore the placeholders
-```
-
-CI fails if a filled-in credential is ever committed. Leaving the placeholders
-empty is also valid: the app then asks the user to supply their own
-registration.
-
-The sign-in flow uses PKCE (S256). Whether Todoist enforces the verifier at
-token exchange is not observable from a client, so this is protection only if
-the server honours it.
-
-### Why the release PKGBUILD never uses `SKIP`
-
-`sha256sums=('SKIP')` is correct for `ktodo-git`, whose source is a git
-checkout that git verifies itself. For the release package it would mean
-makepkg builds whatever the download happened to return, so the tarball is
-pinned by digest instead, and CI fails the build if that is ever weakened back
-to `SKIP`.
-
-The digest covers the tarball uploaded by the release workflow, not GitHub's
-auto-generated "Source code" links: those are produced on demand and are not
-byte-stable, so they cannot be pinned.
 
 ## Licence
 
