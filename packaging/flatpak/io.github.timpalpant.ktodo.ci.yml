@@ -14,6 +14,12 @@ sdk: org.kde.Sdk
 
 command: ktodo
 
+# CI and release artifacts use the working-tree manifest. The Ubuntu
+# AppStream compositor currently cannot process KTodo's icon consistently,
+# even though the icon, desktop entry and MetaInfo are installed normally.
+# The published Flathub manifest retains the standard composition step.
+appstream-compose: false
+
 finish-args:
   # Rendering and display.
   - --share=ipc

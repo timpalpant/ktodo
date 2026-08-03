@@ -147,18 +147,14 @@ jobs:
   flatpak:
     name: Flatpak bundle
     needs: verify
-    # Keep the release composer aligned with CI; see ci.yml for why this uses
-    # the compatible AppStream version from Ubuntu 22.04.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install flatpak
         run: |
           sudo apt-get update
-          # Keep this in sync with CI: Ubuntu 22.04 packages the composer
-          # separately from flatpak-builder.
-          sudo apt-get install -y flatpak flatpak-builder appstream-compose
+          sudo apt-get install -y flatpak flatpak-builder
           flatpak remote-add --if-not-exists --user \
             flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 

@@ -164,10 +164,7 @@ jobs:
 
   flatpak:
     name: Flatpak
-    # Ubuntu 24.04's AppStream 1.0 compositor rejects this otherwise valid
-    # icon during metadata composition. The host only composes metadata; the
-    # application itself still builds against the KDE 6.11 SDK below.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -191,9 +188,7 @@ jobs:
       - name: Install flatpak
         run: |
           sudo apt-get update
-          # flatpak-builder 1.2 on Ubuntu 22.04 invokes the legacy composer
-          # directly, but does not depend on its separate package.
-          sudo apt-get install -y flatpak flatpak-builder appstream-compose
+          sudo apt-get install -y flatpak flatpak-builder
           flatpak remote-add --if-not-exists --user \
             flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
