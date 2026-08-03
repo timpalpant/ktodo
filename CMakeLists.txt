@@ -167,6 +167,9 @@ install(FILES data/io.github.timpalpant.ktodo.desktop DESTINATION ${CMAKE_INSTAL
 install(FILES data/io.github.timpalpant.ktodo.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/metainfo)
 install(FILES data/ktodo.notifyrc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/knotifications6)
 install(FILES data/icons/io.github.timpalpant.ktodo.svg DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps)
+# AppStream's Flatpak compose step needs a raster icon even when a scalable
+# icon is installed too.  The PNG is rendered from the SVG source artwork.
+install(FILES data/icons/io.github.timpalpant.ktodo.png DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/128x128/apps)
 
 if(TARGET KF6::I18n)
     ki18n_install(po)

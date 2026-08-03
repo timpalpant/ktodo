@@ -42,10 +42,12 @@ done
 if [[ "$(id -u)" -eq 0 ]]; then
     if ! id builder &>/dev/null; then
         useradd -m builder
-        # makepkg -s installs the declared dependencies, which needs pacman.
-        echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
-        chmod 0440 /etc/sudoers.d/builder
     fi
+    # The packaging lint job may have created this user already.  Provision the
+    # narrowly-scoped sudo rule independently so makepkg can install declared
+    # dependencies in either order.
+    echo 'builder ALL=(ALL) NOPASSWD: /usr/bin/pacman' > /etc/sudoers.d/builder
+    chmod 0440 /etc/sudoers.d/builder
     mkdir -p "$outdir"
     chown -R builder "$REPO_ROOT" "$outdir"
     exec sudo -u builder --preserve-env=GITHUB_REF_NAME \
