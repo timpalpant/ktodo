@@ -25,6 +25,12 @@ constexpr int IdleIntervalMs = 5 * 60 * 1000;
 constexpr int FlushDelayMs = 1200;
 constexpr int MaxRetryDelayMs = 5 * 60 * 1000;
 constexpr int CommandBatchSize = 100;
+// The completed-tasks endpoint caps the window at three months and a page at
+// 50 tasks. Ten pages is more history than a task list can usefully show, and
+// bounds how long the toggle spends fetching on a busy account.
+constexpr int CompletedWindowDays = 90;
+constexpr int CompletedPageSize = 50;
+constexpr int MaxCompletedPages = 10;
 } // namespace
 
 SyncEngine::SyncEngine(ApiClient *api, Repository *repo, AuthManager *auth, QObject *parent)
@@ -142,6 +148,43 @@ void SyncEngine::resync()
 {
     m_repo->setSyncToken(QStringLiteral("*"));
     syncNow();
+}
+
+void SyncEngine::fetchCompleted(const QString &projectId)
+{
+    // Toggling the view repeatedly must not stack up overlapping page walks.
+    if (!m_auth || !m_auth->isAuthenticated() || m_fetchingCompleted) {
+        return;
+    }
+
+    m_fetchingCompleted = true;
+    const QDateTime until = QDateTime::currentDateTimeUtc();
+    fetchCompletedPage(projectId, until.addDays(-CompletedWindowDays), until, QString(), 0);
+}
+
+void SyncEngine::fetchCompletedPage(const QString &projectId, const QDateTime &since, const QDateTime &until, const QString &cursor, int page)
+{
+    m_api->completedTasks(since, until, projectId, cursor, CompletedPageSize, [this, projectId, since, until, page](const ApiClient::Result &result) {
+        if (!result.ok) {
+            m_fetchingCompleted = false;
+            qWarning() << "ktodo: could not read completed tasks" << result.error;
+            Q_EMIT completedFetchFailed(result.error);
+            return;
+        }
+
+        // Each page is applied as it lands, so a long history fills the list
+        // progressively instead of after the last request.
+        const QJsonArray items = result.payload.contains(QStringLiteral("items")) ? result.payload.value(QStringLiteral("items")).toArray()
+                                                                                  : result.payload.value(QStringLiteral("results")).toArray();
+        m_repo->applyCompletedItems(items);
+
+        const QString next = result.payload.value(QStringLiteral("next_cursor")).toString();
+        if (next.isEmpty() || items.isEmpty() || page + 1 >= MaxCompletedPages) {
+            m_fetchingCompleted = false;
+            return;
+        }
+        fetchCompletedPage(projectId, since, until, next, page + 1);
+    });
 }
 
 void SyncEngine::scheduleRetry()

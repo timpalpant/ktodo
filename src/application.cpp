@@ -49,6 +49,9 @@ Application::Application(Repository *repo, SyncEngine *sync, AuthManager *auth, 
         Q_UNUSED(type);
         Q_EMIT errorOccurred(error.isEmpty() ? i18n("Todoist rejected a change.") : i18n("Todoist rejected a change: %1", error));
     });
+    connect(m_sync, &SyncEngine::completedFetchFailed, this, [this](const QString &error) {
+        Q_EMIT errorOccurred(error.isEmpty() ? i18n("Could not load completed tasks.") : i18n("Could not load completed tasks: %1", error));
+    });
 }
 
 void Application::touch()

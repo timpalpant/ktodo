@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDateTime>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QObject>
@@ -12,7 +13,7 @@ class QNetworkAccessManager;
 /**
  * Thin transport over Todoist's unified API v1.
  *
- * Only the /sync endpoint is used: it carries both incremental reads and
+ * Nearly everything goes through /sync: it carries both incremental reads and
  * batched writes, which is what makes offline-first behavior possible.
  * (The former sync/v9 and rest/v2 endpoints now return HTTP 410.)
  */
@@ -44,12 +45,30 @@ public:
      */
     void sync(const QString &syncToken, const QStringList &resourceTypes, const QJsonArray &commands, Callback callback);
 
+    /**
+     * Reads one page of tasks completed between @p since and @p until.
+     *
+     * /sync leaves completed tasks out of its payload entirely, so this is the
+     * only way to see anything finished before the current session. The server
+     * caps the window at three months and a page at 50 tasks; pass the previous
+     * response's next_cursor to continue, and an empty @p projectId to read
+     * across every project.
+     */
+    void
+    completedTasks(const QDateTime &since, const QDateTime &until, const QString &projectId, const QString &cursor, int limit, Callback callback);
+
     /// Server-side natural-language task creation ("quick add").
     void quickAdd(const QString &text, Callback callback);
 
 private:
+    enum class Method {
+        Get,
+        Post,
+    };
+
+    void get(const QString &pathWithQuery, Callback callback);
     void post(const QString &path, const QByteArray &body, Callback callback);
-    void postWithToken(const QString &path, const QByteArray &body, bool retriedAfterRefresh, Callback callback);
+    void send(Method method, const QString &path, const QByteArray &body, bool retriedAfterRefresh, Callback callback);
 
     AuthManager *m_auth = nullptr;
     QNetworkAccessManager *m_network = nullptr;

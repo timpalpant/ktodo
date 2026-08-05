@@ -222,6 +222,36 @@ void Repository::applySyncPayload(const QJsonObject &payload)
     }
 }
 
+void Repository::applyCompletedItems(const QJsonArray &items)
+{
+    if (items.isEmpty()) {
+        return;
+    }
+
+    QSqlDatabase database = Database::instance().db();
+    database.transaction();
+
+    // A task the user just re-opened is newer locally than this payload, which
+    // the server computed before that edit reached it.
+    const QSet<QString> locallyEdited = CommandQueue::instance()->pendingObjectIds();
+
+    for (const QJsonValue &v : items) {
+        Item i = Item::fromJson(v.toObject());
+        if (i.id.isEmpty() || locallyEdited.contains(i.id)) {
+            continue;
+        }
+        // Everything this endpoint returns is complete by definition, but the
+        // task objects it hands back do not always carry the flag.
+        i.checked = true;
+        upsertItem(i);
+    }
+
+    database.commit();
+
+    Q_EMIT changed();
+    Q_EMIT itemsChanged();
+}
+
 void Repository::removeRow(const QString &table, const QString &id)
 {
     QSqlQuery q(Database::instance().db());
@@ -590,47 +620,61 @@ QVector<Item> Repository::items(const TaskQuery &query) const
     QString where;
     QVariantList binds;
 
+    // "Show completed" widens a list rather than swapping it: completed tasks
+    // join the active ones instead of replacing them, so the clause drops out
+    // entirely instead of flipping to `checked = 1`.
+    const QString active = query.includeCompleted ? QStringLiteral("1") : QStringLiteral("checked = 0");
+    // Completed tasks keep whatever child_order they had, which is meaningless
+    // once they leave the list, so they are grouped after the active ones and
+    // shown most-recently-finished first.
+    const QString manualOrder = query.includeCompleted ? QStringLiteral("ORDER BY checked ASC, child_order ASC, completed_at DESC")
+                                                       : QStringLiteral("ORDER BY child_order ASC");
+
     switch (query.kind) {
     case TaskQuery::Project:
-        where = QStringLiteral("WHERE project_id = ? AND checked = ? "
-                               "ORDER BY child_order ASC");
-        binds << query.projectId << query.includeCompleted;
+        where = QStringLiteral("WHERE project_id = ? AND %1 %2").arg(active, manualOrder);
+        binds << query.projectId;
         break;
 
     case TaskQuery::Inbox:
-        where = QStringLiteral("WHERE project_id = ? AND checked = 0 ORDER BY child_order ASC");
+        where = QStringLiteral("WHERE project_id = ? AND %1 %2").arg(active, manualOrder);
         binds << query.projectId;
         break;
 
     case TaskQuery::Today:
         // Overdue tasks belong in Today, matching Todoist's own behavior.
-        where = QStringLiteral("WHERE checked = 0 AND due_date IS NOT NULL AND due_date <= ? "
-                               "ORDER BY due_date ASC, priority DESC, child_order ASC");
+        where = QStringLiteral("WHERE %1 AND due_date IS NOT NULL AND due_date <= ? "
+                               "ORDER BY due_date ASC, priority DESC, child_order ASC")
+                    .arg(active);
         binds << today + QStringLiteral("T23:59:59");
         break;
 
     case TaskQuery::Upcoming:
-        where = QStringLiteral("WHERE checked = 0 AND due_date IS NOT NULL "
+        where = QStringLiteral("WHERE %1 AND due_date IS NOT NULL "
                                "AND due_date >= ? AND due_date <= ? "
-                               "ORDER BY due_date ASC, priority DESC, child_order ASC");
+                               "ORDER BY due_date ASC, priority DESC, child_order ASC")
+                    .arg(active);
         binds << query.rangeStart.toString(Qt::ISODate) << query.rangeEnd.toString(Qt::ISODate) + QStringLiteral("T23:59:59");
         break;
 
     case TaskQuery::Label:
-        where = QStringLiteral("WHERE checked = 0 AND labels LIKE ? "
-                               "ORDER BY due_date ASC, priority DESC");
+        where = QStringLiteral("WHERE %1 AND labels LIKE ? "
+                               "ORDER BY due_date ASC, priority DESC")
+                    .arg(active);
         binds << QStringLiteral("%\"") + query.labelName + QStringLiteral("\"%");
         break;
 
     case TaskQuery::Search:
-        where = QStringLiteral("WHERE (content LIKE ? OR description LIKE ?) AND checked = 0 "
-                               "ORDER BY due_date ASC, priority DESC LIMIT 300");
+        where = QStringLiteral("WHERE (content LIKE ? OR description LIKE ?) AND %1 "
+                               "ORDER BY due_date ASC, priority DESC LIMIT 300")
+                    .arg(active);
         binds << QStringLiteral("%") + query.searchText + QStringLiteral("%") << QStringLiteral("%") + query.searchText + QStringLiteral("%");
         break;
 
     case TaskQuery::AssignedToMe:
-        where = QStringLiteral("WHERE checked = 0 AND responsible_uid = ? "
-                               "ORDER BY due_date ASC, priority DESC");
+        where = QStringLiteral("WHERE %1 AND responsible_uid = ? "
+                               "ORDER BY due_date ASC, priority DESC")
+                    .arg(active);
         binds << currentUserId();
         break;
 
@@ -641,7 +685,7 @@ QVector<Item> Repository::items(const TaskQuery &query) const
     case TaskQuery::SavedFilter: {
         // The filter language is richer than SQL can express directly, so the
         // candidate set is narrowed here and evaluated in memory.
-        const QVector<Item> all = itemsFromSql(QStringLiteral("WHERE checked = 0"), {});
+        const QVector<Item> all = itemsFromSql(QStringLiteral("WHERE %1").arg(active), {});
         FilterQuery fq(query.filterQuery, this);
         QVector<Item> matched;
         for (const Item &i : all) {

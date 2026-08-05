@@ -103,7 +103,15 @@ Kirigami.ScrollablePage {
             icon.name: "checkmark"
             checkable: true
             checked: taskModel.showCompleted
-            onTriggered: taskModel.showCompleted = !taskModel.showCompleted
+            // Completed tasks are absent from the sync payload, so switching
+            // this on has to go and fetch them before the list has anything
+            // to show. Pages arrive incrementally.
+            onTriggered: {
+                taskModel.showCompleted = !taskModel.showCompleted;
+                if (taskModel.showCompleted) {
+                    Sync.fetchCompleted(root.isProject ? root.projectId : "");
+                }
+            }
         },
         Kirigami.Action {
             text: i18nc("@action:button", "Edit Project")

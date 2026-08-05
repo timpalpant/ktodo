@@ -3,6 +3,7 @@
 #include "types.h"
 
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QObject>
 #include <QVector>
@@ -49,6 +50,13 @@ public:
 
     // -- Applying server state -------------------------------------------
     void applySyncPayload(const QJsonObject &payload);
+    /**
+     * Caches tasks read from the completed-tasks endpoint.
+     *
+     * /sync omits completed tasks, so they arrive through a separate read and
+     * are merged in rather than treated as an authoritative snapshot.
+     */
+    void applyCompletedItems(const QJsonArray &items);
     void setSyncToken(const QString &token);
     QString syncToken() const;
 

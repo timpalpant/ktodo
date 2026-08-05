@@ -107,6 +107,11 @@ private Q_SLOTS:
     void bottomBoundaryKeepsRootTaskAtRoot();
     void headerEdgeTargetsSectionRoot();
 
+    void showCompletedAddsCompletedTasksWithoutHidingActiveOnes();
+    void showCompletedRevealsCompletedSubtasks();
+    void showCompletedAppliesToDateAndLabelViews();
+    void completedTasksFetchedSeparatelyJoinTheList();
+
     void collapsingHidesSubtasksAndSyncsTheState();
     void subtaskCountsIncludeHiddenCompletedChildren();
     void collapsedSubtreeStillCountsTowardTheNestingLimit();
@@ -279,6 +284,125 @@ void TaskModelTest::headerEdgeTargetsSectionRoot()
     const Todoist::Item moved = Repository::instance()->item(QStringLiteral("candidate"));
     QVERIFY(moved.parentId.isEmpty());
     QCOMPARE(moved.sectionId, QStringLiteral("first"));
+}
+
+void TaskModelTest::showCompletedAddsCompletedTasksWithoutHidingActiveOnes()
+{
+    load(QJsonArray{
+        task(QStringLiteral("active"), {}, 0),
+        completedTask(QStringLiteral("done"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    QVERIFY(rowFor(model, QStringLiteral("active")) >= 0);
+    QCOMPARE(rowFor(model, QStringLiteral("done")), -1);
+
+    model.setShowCompleted(true);
+    QCoreApplication::processEvents();
+
+    // The toggle widens the list; it must not trade the active tasks away for
+    // the completed ones.
+    QVERIFY(rowFor(model, QStringLiteral("active")) >= 0);
+    QVERIFY(rowFor(model, QStringLiteral("done")) >= 0);
+    // Completed tasks sort below the active ones, whatever order they carry.
+    QVERIFY(rowFor(model, QStringLiteral("active")) < rowFor(model, QStringLiteral("done")));
+
+    model.setShowCompleted(false);
+    QCoreApplication::processEvents();
+    QVERIFY(rowFor(model, QStringLiteral("active")) >= 0);
+    QCOMPARE(rowFor(model, QStringLiteral("done")), -1);
+}
+
+void TaskModelTest::showCompletedRevealsCompletedSubtasks()
+{
+    load(QJsonArray{
+        task(QStringLiteral("parent"), {}, 0),
+        task(QStringLiteral("open"), QStringLiteral("parent"), 0),
+        completedTask(QStringLiteral("finished"), QStringLiteral("parent"), 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    QCOMPARE(rowFor(model, QStringLiteral("finished")), -1);
+
+    model.setShowCompleted(true);
+    QCoreApplication::processEvents();
+
+    const int parent = rowFor(model, QStringLiteral("parent"));
+    const int finished = rowFor(model, QStringLiteral("finished"));
+    QVERIFY(parent >= 0);
+    QVERIFY(finished > parent);
+    // Still nested under its parent rather than promoted to a row of its own.
+    QCOMPARE(model.data(model.index(finished, 0), TaskModel::DepthRole).toInt(), 1);
+    QVERIFY(model.data(model.index(finished, 0), TaskModel::CheckedRole).toBool());
+}
+
+void TaskModelTest::showCompletedAppliesToDateAndLabelViews()
+{
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+
+    QJsonObject open = task(QStringLiteral("open"), {}, 0);
+    open.insert(QStringLiteral("due"), QJsonObject{{QStringLiteral("date"), today}});
+    open.insert(QStringLiteral("labels"), QJsonArray{QStringLiteral("errands")});
+
+    QJsonObject done = completedTask(QStringLiteral("done"), {}, 1);
+    done.insert(QStringLiteral("due"), QJsonObject{{QStringLiteral("date"), today}});
+    done.insert(QStringLiteral("labels"), QJsonArray{QStringLiteral("errands")});
+
+    load(QJsonArray{open, done});
+
+    // The toggle is offered on every task list, so it has to mean something on
+    // the views that are not a project.
+    TaskModel todayModel;
+    todayModel.setMode(TaskModel::Today);
+    QCoreApplication::processEvents();
+    QCOMPARE(rowFor(todayModel, QStringLiteral("done")), -1);
+    todayModel.setShowCompleted(true);
+    QCoreApplication::processEvents();
+    QVERIFY(rowFor(todayModel, QStringLiteral("open")) >= 0);
+    QVERIFY(rowFor(todayModel, QStringLiteral("done")) >= 0);
+
+    TaskModel labelModel;
+    labelModel.setMode(TaskModel::LabelTasks);
+    labelModel.setLabelName(QStringLiteral("errands"));
+    QCoreApplication::processEvents();
+    QCOMPARE(rowFor(labelModel, QStringLiteral("done")), -1);
+    labelModel.setShowCompleted(true);
+    QCoreApplication::processEvents();
+    QVERIFY(rowFor(labelModel, QStringLiteral("open")) >= 0);
+    QVERIFY(rowFor(labelModel, QStringLiteral("done")) >= 0);
+}
+
+void TaskModelTest::completedTasksFetchedSeparatelyJoinTheList()
+{
+    load(QJsonArray{task(QStringLiteral("active"), {}, 0)});
+
+    TaskModel model;
+    configureProjectModel(model);
+    model.setShowCompleted(true);
+    QCoreApplication::processEvents();
+    QCOMPARE(rowFor(model, QStringLiteral("archived")), -1);
+
+    // The completed-tasks endpoint reports completion through completed_at and
+    // does not always set `checked`, so the repository has to infer it.
+    Repository::instance()->applyCompletedItems(QJsonArray{QJsonObject{
+        {QStringLiteral("id"), QStringLiteral("archived")},
+        {QStringLiteral("content"), QStringLiteral("archived")},
+        {QStringLiteral("project_id"), QStringLiteral("project")},
+        {QStringLiteral("completed_at"), QStringLiteral("2026-08-01T09:00:00.000000Z")},
+    }});
+    QCoreApplication::processEvents();
+
+    const int archived = rowFor(model, QStringLiteral("archived"));
+    QVERIFY(archived >= 0);
+    QVERIFY(model.data(model.index(archived, 0), TaskModel::CheckedRole).toBool());
+
+    // ...and drops back out of sight when the toggle goes off again.
+    model.setShowCompleted(false);
+    QCoreApplication::processEvents();
+    QCOMPARE(rowFor(model, QStringLiteral("archived")), -1);
+    QVERIFY(rowFor(model, QStringLiteral("active")) >= 0);
 }
 
 void TaskModelTest::collapsingHidesSubtasksAndSyncsTheState()

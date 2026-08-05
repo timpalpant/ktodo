@@ -46,6 +46,24 @@ void ApiClient::sync(const QString &syncToken, const QStringList &resourceTypes,
     post(QStringLiteral("/sync"), form.toString(QUrl::FullyEncoded).toUtf8(), std::move(callback));
 }
 
+void ApiClient::completedTasks(
+    const QDateTime &since, const QDateTime &until, const QString &projectId, const QString &cursor, int limit, Callback callback)
+{
+    QUrlQuery params;
+    // Both bounds are required; the server rejects an open-ended window.
+    params.addQueryItem(QStringLiteral("since"), since.toUTC().toString(Qt::ISODate));
+    params.addQueryItem(QStringLiteral("until"), until.toUTC().toString(Qt::ISODate));
+    params.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+    if (!projectId.isEmpty()) {
+        params.addQueryItem(QStringLiteral("project_id"), projectId);
+    }
+    if (!cursor.isEmpty()) {
+        params.addQueryItem(QStringLiteral("cursor"), cursor);
+    }
+
+    get(QStringLiteral("/tasks/completed/by_completion_date?") + params.toString(QUrl::FullyEncoded), std::move(callback));
+}
+
 void ApiClient::quickAdd(const QString &text, Callback callback)
 {
     QUrlQuery form;
@@ -53,12 +71,17 @@ void ApiClient::quickAdd(const QString &text, Callback callback)
     post(QStringLiteral("/tasks/quick"), form.toString(QUrl::FullyEncoded).toUtf8(), std::move(callback));
 }
 
-void ApiClient::post(const QString &path, const QByteArray &body, Callback callback)
+void ApiClient::get(const QString &pathWithQuery, Callback callback)
 {
-    postWithToken(path, body, false, std::move(callback));
+    send(Method::Get, pathWithQuery, {}, false, std::move(callback));
 }
 
-void ApiClient::postWithToken(const QString &path, const QByteArray &body, bool retriedAfterRefresh, Callback callback)
+void ApiClient::post(const QString &path, const QByteArray &body, Callback callback)
+{
+    send(Method::Post, path, body, false, std::move(callback));
+}
+
+void ApiClient::send(Method method, const QString &path, const QByteArray &body, bool retriedAfterRefresh, Callback callback)
 {
     const QString token = m_auth ? m_auth->accessToken() : QString();
     if (token.isEmpty()) {
@@ -70,14 +93,19 @@ void ApiClient::postWithToken(const QString &path, const QByteArray &body, bool 
     }
 
     QNetworkRequest request(QUrl(ApiBase + path));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
     request.setRawHeader("Authorization", "Bearer " + token.toUtf8());
     request.setRawHeader("User-Agent", "ktodo/" KTODO_VERSION_STRING " (KDE)");
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
-    QNetworkReply *reply = m_network->post(request, body);
+    QNetworkReply *reply = nullptr;
+    if (method == Method::Post) {
+        request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
+        reply = m_network->post(request, body);
+    } else {
+        reply = m_network->get(request);
+    }
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, path, body, retriedAfterRefresh, cb = std::move(callback)]() mutable {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, method, path, body, retriedAfterRefresh, cb = std::move(callback)]() mutable {
         reply->deleteLater();
 
         Result result;
@@ -90,19 +118,20 @@ void ApiClient::postWithToken(const QString &path, const QByteArray &body, bool 
             // the server's signal to refresh, then replay this one request
             // with the replacement token; it is not grounds to discard a
             // perfectly recoverable session.
-            m_auth->refreshAccessToken([this, path, body, cb = std::move(cb)](AuthManager::RefreshResult refresh, const QString &error) mutable {
-                if (refresh == AuthManager::RefreshResult::Refreshed) {
-                    postWithToken(path, body, true, std::move(cb));
-                    return;
-                }
+            m_auth->refreshAccessToken(
+                [this, method, path, body, cb = std::move(cb)](AuthManager::RefreshResult refresh, const QString &error) mutable {
+                    if (refresh == AuthManager::RefreshResult::Refreshed) {
+                        send(method, path, body, true, std::move(cb));
+                        return;
+                    }
 
-                Result refreshedResult;
-                refreshedResult.httpStatus = 401;
-                refreshedResult.error = error;
-                refreshedResult.retryable = refresh == AuthManager::RefreshResult::TransientFailure;
-                refreshedResult.unauthorized = !refreshedResult.retryable;
-                cb(refreshedResult);
-            });
+                    Result refreshedResult;
+                    refreshedResult.httpStatus = 401;
+                    refreshedResult.error = error;
+                    refreshedResult.retryable = refresh == AuthManager::RefreshResult::TransientFailure;
+                    refreshedResult.unauthorized = !refreshedResult.retryable;
+                    cb(refreshedResult);
+                });
             return;
         }
 

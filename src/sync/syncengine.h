@@ -60,6 +60,14 @@ public Q_SLOTS:
     void resync();
     /// Short-delay sync used after a local edit, so typing does not spam.
     void scheduleFlush();
+    /**
+     * Pulls recently completed tasks into the local cache.
+     *
+     * The regular sync payload never carries them, so nothing the user
+     * finished before this session exists locally until this runs. Pass a
+     * project id to read one list, or an empty string for every project.
+     */
+    void fetchCompleted(const QString &projectId = {});
 
 Q_SIGNALS:
     void statusChanged();
@@ -67,9 +75,12 @@ Q_SIGNALS:
     void syncFinished(bool success);
     /// A command was rejected outright; the UI surfaces this to the user.
     void commandRejected(const QString &commandType, const QString &error);
+    /// Completed tasks could not be read; the list stays as it was.
+    void completedFetchFailed(const QString &error);
 
 private:
     void performSync();
+    void fetchCompletedPage(const QString &projectId, const QDateTime &since, const QDateTime &until, const QString &cursor, int page);
     void setStatus(Status status, const QString &error = {});
     void scheduleRetry();
 
@@ -87,6 +98,7 @@ private:
 
     bool m_running = false;
     bool m_syncRequestedWhileRunning = false;
+    bool m_fetchingCompleted = false;
     int m_consecutiveFailures = 0;
     int m_consecutiveUnauthorized = 0;
 };
