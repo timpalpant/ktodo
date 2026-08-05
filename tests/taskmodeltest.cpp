@@ -1,5 +1,5 @@
 /*
- * Tests for the task hierarchy drop contract.
+ * Tests for the task hierarchy drop and collapse contracts.
  *
  * These cases exercise the model against the same optimistic Repository used
  * by the GUI: a hierarchy change must update parent_id locally and queue the
@@ -33,6 +33,20 @@ QJsonObject task(const QString &id, const QString &parentId, int order, const QS
     if (!sectionId.isEmpty()) {
         out.insert(QStringLiteral("section_id"), sectionId);
     }
+    return out;
+}
+
+QJsonObject completedTask(const QString &id, const QString &parentId, int order)
+{
+    QJsonObject out = task(id, parentId, order);
+    out.insert(QStringLiteral("checked"), true);
+    return out;
+}
+
+QJsonObject collapsedTask(const QString &id, const QString &parentId, int order)
+{
+    QJsonObject out = task(id, parentId, order);
+    out.insert(QStringLiteral("is_collapsed"), true);
     return out;
 }
 
@@ -92,6 +106,12 @@ private Q_SLOTS:
     void lowerEdgeOfParentUsesParentSiblingScope();
     void bottomBoundaryKeepsRootTaskAtRoot();
     void headerEdgeTargetsSectionRoot();
+
+    void collapsingHidesSubtasksAndSyncsTheState();
+    void subtaskCountsIncludeHiddenCompletedChildren();
+    void collapsedSubtreeStillCountsTowardTheNestingLimit();
+    void droppingIntoACollapsedTaskRevealsIt();
+    void collapsingInAReadOnlyProjectStaysLocal();
 
 private:
     QTemporaryDir m_temp;
@@ -259,6 +279,161 @@ void TaskModelTest::headerEdgeTargetsSectionRoot()
     const Todoist::Item moved = Repository::instance()->item(QStringLiteral("candidate"));
     QVERIFY(moved.parentId.isEmpty());
     QCOMPARE(moved.sectionId, QStringLiteral("first"));
+}
+
+void TaskModelTest::collapsingHidesSubtasksAndSyncsTheState()
+{
+    load(QJsonArray{
+        task(QStringLiteral("parent"), {}, 0),
+        task(QStringLiteral("child"), QStringLiteral("parent"), 0),
+        task(QStringLiteral("other"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    const int parent = rowFor(model, QStringLiteral("parent"));
+    QVERIFY(parent >= 0);
+    QVERIFY(model.data(model.index(parent, 0), TaskModel::CanCollapseRole).toBool());
+    QVERIFY(!model.data(model.index(parent, 0), TaskModel::IsCollapsedRole).toBool());
+    QVERIFY(model.hasCollapsibleRows());
+
+    model.toggleCollapsed(parent);
+    QCoreApplication::processEvents();
+
+    // The sub-task is hidden, but the parent and its siblings stay put.
+    QCOMPARE(rowFor(model, QStringLiteral("child")), -1);
+    QVERIFY(rowFor(model, QStringLiteral("other")) >= 0);
+    const int collapsed = rowFor(model, QStringLiteral("parent"));
+    QVERIFY(collapsed >= 0);
+    QVERIFY(model.data(model.index(collapsed, 0), TaskModel::IsCollapsedRole).toBool());
+    // Still one of one sub-task: collapsing hides rows, it does not drop them.
+    QCOMPARE(model.data(model.index(collapsed, 0), TaskModel::SubtaskCountRole).toInt(), 1);
+
+    // Todoist stores the state per task, so it is pushed like any other edit.
+    QVERIFY(Repository::instance()->item(QStringLiteral("parent")).isCollapsed);
+    const QVector<PendingCommand> commands = CommandQueue::instance()->take();
+    QCOMPARE(commands.size(), 1);
+    QCOMPARE(commands.at(0).type, QStringLiteral("item_update"));
+    QCOMPARE(commands.at(0).args.value(QStringLiteral("is_collapsed")).toBool(), true);
+
+    model.toggleCollapsed(collapsed);
+    QCoreApplication::processEvents();
+
+    QVERIFY(rowFor(model, QStringLiteral("child")) >= 0);
+    QVERIFY(!Repository::instance()->item(QStringLiteral("parent")).isCollapsed);
+}
+
+void TaskModelTest::subtaskCountsIncludeHiddenCompletedChildren()
+{
+    load(QJsonArray{
+        task(QStringLiteral("parent"), {}, 0),
+        task(QStringLiteral("first"), QStringLiteral("parent"), 0),
+        completedTask(QStringLiteral("second"), QStringLiteral("parent"), 1),
+        completedTask(QStringLiteral("third"), QStringLiteral("parent"), 2),
+        task(QStringLiteral("lonely"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    const int parent = rowFor(model, QStringLiteral("parent"));
+    QVERIFY(parent >= 0);
+    // Completed sub-tasks are filtered out of the list, yet the indicator has
+    // to say "1 of 3" for the fraction to mean anything.
+    QCOMPARE(model.data(model.index(parent, 0), TaskModel::SubtaskCountRole).toInt(), 3);
+    QCOMPARE(model.data(model.index(parent, 0), TaskModel::SubtaskCompletedCountRole).toInt(), 2);
+
+    const int lonely = rowFor(model, QStringLiteral("lonely"));
+    QVERIFY(lonely >= 0);
+    QCOMPARE(model.data(model.index(lonely, 0), TaskModel::SubtaskCountRole).toInt(), 0);
+    QVERIFY(!model.data(model.index(lonely, 0), TaskModel::CanCollapseRole).toBool());
+}
+
+void TaskModelTest::collapsedSubtreeStillCountsTowardTheNestingLimit()
+{
+    load(QJsonArray{
+        task(QStringLiteral("level0"), {}, 0),
+        task(QStringLiteral("level1"), QStringLiteral("level0"), 0),
+        task(QStringLiteral("level2"), QStringLiteral("level1"), 0),
+        task(QStringLiteral("level3"), QStringLiteral("level2"), 0),
+        collapsedTask(QStringLiteral("mover"), {}, 1),
+        task(QStringLiteral("passenger"), QStringLiteral("mover"), 0),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    const int mover = rowFor(model, QStringLiteral("mover"));
+    const int level3 = rowFor(model, QStringLiteral("level3"));
+    QVERIFY(mover >= 0);
+    QVERIFY(level3 >= 0);
+    QCOMPARE(rowFor(model, QStringLiteral("passenger")), -1);
+
+    // The hidden sub-task would land five levels deep. Measuring the source's
+    // height from the visible rows alone would have missed it.
+    QVERIFY(!model.canDrop(mover, level3, level3, true));
+
+    const int level2 = rowFor(model, QStringLiteral("level2"));
+    QVERIFY(level2 >= 0);
+    QVERIFY(model.canDrop(mover, level2, level2, true));
+}
+
+void TaskModelTest::droppingIntoACollapsedTaskRevealsIt()
+{
+    load(QJsonArray{
+        collapsedTask(QStringLiteral("parent"), {}, 0),
+        task(QStringLiteral("child"), QStringLiteral("parent"), 0),
+        task(QStringLiteral("mover"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    const int parent = rowFor(model, QStringLiteral("parent"));
+    const int mover = rowFor(model, QStringLiteral("mover"));
+    QVERIFY(parent >= 0);
+    QVERIFY(mover >= 0);
+
+    model.commitDrop(mover, parent, parent, true);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(Repository::instance()->item(QStringLiteral("mover")).parentId, QStringLiteral("parent"));
+    // A task dropped into a collapsed parent would otherwise disappear.
+    QVERIFY(!Repository::instance()->item(QStringLiteral("parent")).isCollapsed);
+    QVERIFY(rowFor(model, QStringLiteral("mover")) >= 0);
+
+    // The hidden sibling keeps its place: renumbering from the visible rows
+    // alone would have given both tasks child_order 0.
+    QCOMPARE(Repository::instance()->item(QStringLiteral("child")).childOrder, 0);
+    QCOMPARE(Repository::instance()->item(QStringLiteral("mover")).childOrder, 1);
+}
+
+void TaskModelTest::collapsingInAReadOnlyProjectStaysLocal()
+{
+    Repository::instance()->applySyncPayload(QJsonObject{
+        {QStringLiteral("projects"),
+         QJsonArray{QJsonObject{
+             {QStringLiteral("id"), QStringLiteral("project")},
+             {QStringLiteral("name"), QStringLiteral("Shared")},
+             {QStringLiteral("role"), QStringLiteral("READ_ONLY")},
+         }}},
+        {QStringLiteral("items"),
+         QJsonArray{
+             task(QStringLiteral("parent"), {}, 0),
+             task(QStringLiteral("child"), QStringLiteral("parent"), 0),
+         }},
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    const int parent = rowFor(model, QStringLiteral("parent"));
+    QVERIFY(parent >= 0);
+
+    model.toggleCollapsed(parent);
+    QCoreApplication::processEvents();
+
+    // Folding still works, but a collaborator who cannot write to the task
+    // must not queue a command the server would only reject.
+    QCOMPARE(rowFor(model, QStringLiteral("child")), -1);
+    QVERIFY(Repository::instance()->item(QStringLiteral("parent")).isCollapsed);
+    QVERIFY(CommandQueue::instance()->take().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TaskModelTest)

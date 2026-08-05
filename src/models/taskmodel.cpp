@@ -114,22 +114,51 @@ TaskQuery TaskModel::buildQuery() const
     return q;
 }
 
-void TaskModel::appendWithChildren(QVector<Row> &rows, const Item &item, const QHash<QString, QVector<Item>> &childrenByParent, int depth)
+int TaskModel::heightOf(const QString &id, Build &build)
+{
+    const auto cached = build.heights.constFind(id);
+    if (cached != build.heights.constEnd()) {
+        return *cached;
+    }
+    // Written before recursing so a cyclic parent chain terminates instead of
+    // running the stack out.
+    build.heights.insert(id, 0);
+
+    int height = 0;
+    const auto children = build.childrenByParent.value(id);
+    for (const Item &child : children) {
+        height = qMax(height, 1 + heightOf(child.id, build));
+    }
+    build.heights.insert(id, height);
+    return height;
+}
+
+TaskModel::Row TaskModel::makeRow(const Item &item, Build &build, int depth, bool nested)
 {
     Row row;
     row.item = item;
     row.depth = depth;
-    row.hasChildren = childrenByParent.contains(item.id);
-    rows.append(row);
+    row.hasChildren = build.childrenByParent.contains(item.id);
+    // Only a nested list has anything to fold away: the flat views list
+    // sub-tasks as rows of their own.
+    row.canCollapse = nested && row.hasChildren;
+    row.subtasks = build.subtaskCounts.value(item.id);
+    row.subtreeHeight = heightOf(item.id, build);
+    return row;
+}
+
+void TaskModel::appendWithChildren(QVector<Row> &rows, const Item &item, Build &build, int depth)
+{
+    rows.append(makeRow(item, build, depth, true));
 
     // Guard against a pathological chain; real data nests only a few levels.
-    if (depth >= 4) {
+    if (depth >= 4 || item.isCollapsed) {
         return;
     }
-    const auto children = childrenByParent.value(item.id);
+    const auto children = build.childrenByParent.value(item.id);
     for (const Item &child : children) {
         if (!child.checked || m_showCompleted) {
-            appendWithChildren(rows, child, childrenByParent, depth + 1);
+            appendWithChildren(rows, child, build, depth + 1);
         }
     }
 }
@@ -143,14 +172,15 @@ void TaskModel::rebuild()
     int taskCount = 0;
 
     // Index children so sub-tasks can be attached to their parent in one pass.
-    QHash<QString, QVector<Item>> childrenByParent;
+    Build build;
+    build.subtaskCounts = repo->subtaskCounts();
     QSet<QString> presentIds;
     for (const Item &i : items) {
         presentIds.insert(i.id);
     }
     for (const Item &i : items) {
         if (!i.parentId.isEmpty()) {
-            childrenByParent[i.parentId].append(i);
+            build.childrenByParent[i.parentId].append(i);
         }
     }
 
@@ -172,7 +202,7 @@ void TaskModel::rebuild()
         }
 
         for (const Item &i : loose) {
-            appendWithChildren(rows, i, childrenByParent, 0);
+            appendWithChildren(rows, i, build, 0);
         }
 
         const QVector<Section> sections = repo->sections(projectId);
@@ -187,7 +217,7 @@ void TaskModel::rebuild()
             header.headerId = s.id;
             rows.append(header);
             for (const Item &i : sectionItems) {
-                appendWithChildren(rows, i, childrenByParent, 0);
+                appendWithChildren(rows, i, build, 0);
             }
         }
     } else if (m_mode == Upcoming) {
@@ -204,26 +234,22 @@ void TaskModel::rebuild()
                 header.headerId = key;
                 rows.append(header);
             }
-            Row row;
-            row.item = i;
-            row.hasChildren = childrenByParent.contains(i.id);
-            rows.append(row);
+            rows.append(makeRow(i, build, 0, false));
         }
     } else {
         for (const Item &i : items) {
             if (!i.parentId.isEmpty() && presentIds.contains(i.parentId) && (m_mode == ProjectTasks || m_mode == Inbox)) {
                 continue;
             }
-            Row row;
-            row.item = i;
-            row.hasChildren = childrenByParent.contains(i.id);
-            rows.append(row);
+            rows.append(makeRow(i, build, 0, false));
         }
     }
 
+    bool collapsible = false;
     for (const Row &r : rows) {
         if (!r.isHeader) {
             ++taskCount;
+            collapsible = collapsible || r.canCollapse;
         }
     }
 
@@ -234,6 +260,10 @@ void TaskModel::rebuild()
     if (m_taskCount != taskCount) {
         m_taskCount = taskCount;
         Q_EMIT countsChanged();
+    }
+    if (m_hasCollapsibleRows != collapsible) {
+        m_hasCollapsibleRows = collapsible;
+        Q_EMIT hasCollapsibleRowsChanged();
     }
 }
 
@@ -407,22 +437,58 @@ int TaskModel::subtreeHeight(int rowIndex) const
     if (rowIndex < 0 || rowIndex >= m_rows.size() || m_rows.at(rowIndex).isHeader) {
         return 0;
     }
+    // Measured at rebuild time from the queried items rather than from the
+    // rows on screen: a collapsed task still carries its descendants with it,
+    // and they count against Todoist's nesting limit at the destination.
+    return m_rows.at(rowIndex).subtreeHeight;
+}
 
-    const int parentDepth = m_rows.at(rowIndex).depth;
-    int height = 0;
-    for (int i = rowIndex + 1; i < m_rows.size(); ++i) {
-        const Row &row = m_rows.at(i);
-        if (row.isHeader || row.depth <= parentDepth) {
-            break;
-        }
-        height = qMax(height, row.depth - parentDepth);
+void TaskModel::setCollapsed(int index, bool collapsed)
+{
+    if (index < 0 || index >= m_rows.size()) {
+        return;
     }
-    return height;
+    const Row &row = m_rows.at(index);
+    if (row.isHeader || !row.canCollapse || row.item.isCollapsed == collapsed) {
+        return;
+    }
+    Repository::instance()->setItemCollapsed(row.item.id, collapsed);
+}
+
+void TaskModel::toggleCollapsed(int index)
+{
+    if (index < 0 || index >= m_rows.size()) {
+        return;
+    }
+    setCollapsed(index, !m_rows.at(index).item.isCollapsed);
 }
 
 QVector<QString> TaskModel::siblingIds(const Drop &drop, const QString &excludeId) const
 {
     QVector<QString> ids;
+
+    // Dropping into a collapsed task: its children are real but off screen, so
+    // renumbering from the visible rows alone would hand out duplicate orders.
+    if (!drop.parentId.isEmpty()) {
+        const int parentRow = [this, &drop] {
+            for (int i = 0; i < m_rows.size(); ++i) {
+                if (!m_rows.at(i).isHeader && m_rows.at(i).item.id == drop.parentId) {
+                    return i;
+                }
+            }
+            return -1;
+        }();
+        if (parentRow >= 0 && m_rows.at(parentRow).item.isCollapsed) {
+            const QVector<Todoist::Item> children = Repository::instance()->subtasks(drop.parentId);
+            for (const Item &child : children) {
+                if (child.id != excludeId && !Repository::instance()->isLocalId(child.id)) {
+                    ids.append(child.id);
+                }
+            }
+            return ids;
+        }
+    }
+
     for (const Row &row : m_rows) {
         if (row.isHeader || row.item.id == excludeId || Repository::instance()->isLocalId(row.item.id) || row.item.projectId != drop.projectId
             || row.item.parentId != drop.parentId) {
@@ -469,6 +535,12 @@ void TaskModel::commitDrop(int fromIndex, int insertIndex, int targetIndex, bool
         orders.append({order.at(i), static_cast<int>(i)});
     }
     repo->reorderItems(orders);
+
+    // Dropping a task into a collapsed parent would otherwise look like the
+    // task vanished, so reveal where it landed.
+    if (!drop.parentId.isEmpty() && repo->item(drop.parentId).isCollapsed) {
+        repo->setItemCollapsed(drop.parentId, false);
+    }
 }
 
 void TaskModel::moveRow(int from, int to)
@@ -593,6 +665,14 @@ QVariant TaskModel::data(const QModelIndex &index, int role) const
         return item.noteCount;
     case HasChildrenRole:
         return row.hasChildren;
+    case CanCollapseRole:
+        return row.canCollapse;
+    case IsCollapsedRole:
+        return row.canCollapse && item.isCollapsed;
+    case SubtaskCountRole:
+        return row.subtasks.total;
+    case SubtaskCompletedCountRole:
+        return row.subtasks.completed;
     case DepthRole:
         return row.depth;
     case AssigneeIdRole:
@@ -642,6 +722,10 @@ QHash<int, QByteArray> TaskModel::roleNames() const
         {CheckedRole, "isChecked"},
         {NoteCountRole, "noteCount"},
         {HasChildrenRole, "hasChildren"},
+        {CanCollapseRole, "canCollapse"},
+        {IsCollapsedRole, "isCollapsed"},
+        {SubtaskCountRole, "subtaskCount"},
+        {SubtaskCompletedCountRole, "subtaskCompletedCount"},
         {DepthRole, "depth"},
         {AssigneeIdRole, "assigneeId"},
         {AssigneeNameRole, "assigneeName"},

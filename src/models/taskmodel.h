@@ -25,6 +25,8 @@ class TaskModel : public QAbstractListModel
     Q_PROPERTY(bool showCompleted READ showCompleted WRITE setShowCompleted NOTIFY queryChanged)
     Q_PROPERTY(int taskCount READ taskCount NOTIFY countsChanged)
     Q_PROPERTY(bool empty READ isEmpty NOTIFY countsChanged)
+    /// True when some row nests, so the view can reserve a disclosure gutter.
+    Q_PROPERTY(bool hasCollapsibleRows READ hasCollapsibleRows NOTIFY hasCollapsibleRowsChanged)
 
 public:
     enum Mode {
@@ -65,6 +67,10 @@ public:
         CheckedRole,
         NoteCountRole,
         HasChildrenRole,
+        CanCollapseRole,
+        IsCollapsedRole,
+        SubtaskCountRole,
+        SubtaskCompletedCountRole,
         DepthRole,
         AssigneeIdRole,
         AssigneeNameRole,
@@ -101,8 +107,18 @@ public:
 
     int taskCount() const { return m_taskCount; }
     bool isEmpty() const { return m_taskCount == 0; }
+    bool hasCollapsibleRows() const { return m_hasCollapsibleRows; }
 
     Q_INVOKABLE void refresh();
+
+    /**
+     * Hides or reveals the sub-tasks of the task at @p index.
+     *
+     * The state lives on the task itself rather than in the view, so it
+     * survives a rebuild and follows the account to Todoist's other clients.
+     */
+    Q_INVOKABLE void setCollapsed(int index, bool collapsed);
+    Q_INVOKABLE void toggleCollapsed(int index);
 
     /**
      * Moves a row for the duration of a drag. This only reorders the model's
@@ -138,6 +154,7 @@ public:
 Q_SIGNALS:
     void queryChanged();
     void countsChanged();
+    void hasCollapsibleRowsChanged();
 
 private:
     struct Row {
@@ -147,6 +164,11 @@ private:
         Todoist::Item item;
         int depth = 0;
         bool hasChildren = false;
+        /// Nested here, so a disclosure control can hide something.
+        bool canCollapse = false;
+        SubtaskCount subtasks;
+        /// Levels of descendants, counted whether or not they are shown.
+        int subtreeHeight = 0;
     };
 
     struct Drop {
@@ -157,13 +179,24 @@ private:
         QString beforeId;
     };
 
+    /// Everything a rebuild derives from the queried items once, up front.
+    struct Build {
+        QHash<QString, QVector<Todoist::Item>> childrenByParent;
+        QHash<QString, SubtaskCount> subtaskCounts;
+        QHash<QString, int> heights; ///< Memoised subtree heights by item id.
+    };
+
     void rebuild();
     TaskQuery buildQuery() const;
-    /// Appends an item and its sub-tasks depth-first.
-    void appendWithChildren(QVector<Row> &rows, const Todoist::Item &item, const QHash<QString, QVector<Todoist::Item>> &childrenByParent, int depth);
+    /// Builds a task row, filling in what it takes to draw the collapse state.
+    Row makeRow(const Todoist::Item &item, Build &build, int depth, bool nested);
+    /// Appends an item and, unless it is collapsed, its sub-tasks depth-first.
+    void appendWithChildren(QVector<Row> &rows, const Todoist::Item &item, Build &build, int depth);
+    /// Levels below @p id in the queried set, regardless of what is shown.
+    static int heightOf(const QString &id, Build &build);
     Drop describeDrop(int fromIndex, int insertIndex, int targetIndex, bool asSubtask) const;
     bool isDescendantOf(const QString &candidateId, const QString &ancestorId) const;
-    /// Tallest visible descendant relative to @p rowIndex.
+    /// Depth of the deepest descendant of @p rowIndex, collapsed or not.
     int subtreeHeight(int rowIndex) const;
     QVector<QString> siblingIds(const Drop &drop, const QString &excludeId = {}) const;
 
@@ -175,6 +208,7 @@ private:
     QString m_searchText;
     bool m_showCompleted = false;
     int m_taskCount = 0;
+    bool m_hasCollapsibleRows = false;
     bool m_rebuildQueued = false;
     bool m_reordering = false;
     bool m_rebuildDeferred = false;

@@ -209,6 +209,10 @@ Kirigami.ScrollablePage {
             required property color projectColor
             required property bool isChecked
             required property int noteCount
+            required property bool canCollapse
+            required property bool isCollapsed
+            required property int subtaskCount
+            required property int subtaskCompletedCount
             required property int depth
             required property string assigneeName
             required property string assigneeAvatar
@@ -289,6 +293,13 @@ Kirigami.ScrollablePage {
                 projectColor: row.projectColor
                 isChecked: row.isChecked
                 noteCount: row.noteCount
+                canCollapse: row.canCollapse
+                isCollapsed: row.isCollapsed
+                subtaskCount: row.subtaskCount
+                subtaskCompletedCount: row.subtaskCompletedCount
+                // Held open list-wide so every checkbox lines up, not just
+                // those of the rows that happen to have sub-tasks.
+                showCollapseGutter: taskModel.hasCollapsibleRows
                 depth: row.depth
                 assigneeName: row.assigneeName
                 assigneeAvatar: row.assigneeAvatar
@@ -332,6 +343,8 @@ Kirigami.ScrollablePage {
                     dragState.asSubtask = false;
                     dragState.valid = false;
                 }
+
+                onCollapseToggled: taskModel.toggleCollapsed(row.index)
 
                 onEditRequested: applicationWindow().openTask(row.taskId)
                 onCompleteRequested: {

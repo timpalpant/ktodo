@@ -34,6 +34,12 @@ struct TaskQuery {
     bool includeCompleted = false;
 };
 
+/// How many sub-tasks a task has, and how many of them are done.
+struct SubtaskCount {
+    int total = 0;
+    int completed = 0;
+};
+
 class Repository : public QObject
 {
     Q_OBJECT
@@ -57,6 +63,14 @@ public:
     QVector<Todoist::Item> items(const TaskQuery &query) const;
     Todoist::Item item(const QString &id) const;
     QVector<Todoist::Item> subtasks(const QString &parentId) const;
+    /**
+     * Sub-task tallies for every parent that has any, keyed by parent id.
+     *
+     * Counted in one pass because the collapse indicator needs a number for
+     * each row, and completed sub-tasks are usually filtered out of the list
+     * the caller is showing.
+     */
+    QHash<QString, SubtaskCount> subtaskCounts() const;
     QVector<Todoist::Label> labels() const;
     QVector<Todoist::Filter> filters() const;
     QVector<Todoist::Note> notes(const QString &itemId) const;
@@ -81,6 +95,8 @@ public:
     void setItemPriority(const QString &id, int apiPriority);
     void setItemLabels(const QString &id, const QStringList &labels);
     void setItemAssignee(const QString &id, const QString &userId);
+    /// Hides or reveals a task's sub-tasks; Todoist syncs this across clients.
+    void setItemCollapsed(const QString &id, bool collapsed);
     void moveItem(const QString &id, const QString &projectId, const QString &sectionId, const QString &parentId);
     void reorderItems(const QVector<QPair<QString, int>> &idsAndOrders);
     void completeItem(const QString &id);

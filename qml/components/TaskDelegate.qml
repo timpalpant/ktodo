@@ -33,6 +33,10 @@ Delegates.RoundedItemDelegate {
     required property color projectColor
     required property bool isChecked
     required property int noteCount
+    required property bool canCollapse
+    required property bool isCollapsed
+    required property int subtaskCount
+    required property int subtaskCompletedCount
     required property int depth
     required property string assigneeName
     required property string assigneeAvatar
@@ -56,6 +60,15 @@ Delegates.RoundedItemDelegate {
     /// the outer delegate row in its normal layout slot throughout the drag.
     property real dragOffsetY: 0
 
+    /**
+     * Whether to keep the disclosure gutter free on rows without sub-tasks.
+     *
+     * A list where nothing nests has nothing to disclose, so the page turns
+     * this off and the rows keep their old alignment.
+     */
+    property bool showCollapseGutter: canCollapse
+
+    signal collapseToggled
     signal editRequested
     signal completeRequested
     signal deleteRequested
@@ -132,22 +145,56 @@ Delegates.RoundedItemDelegate {
             z: 1
             spacing: Kirigami.Units.largeSpacing
 
-            PriorityBadge {
-                priority: root.priority
-                checked: root.isChecked || root.completing
-                accent: root.priorityColor.a > 0 ? root.priorityColor : Kirigami.Theme.textColor
+            RowLayout {
+                spacing: Kirigami.Units.smallSpacing
 
                 // The title's line box is forced to this same height below, so
                 // aligning both to the top puts them on a shared center line
                 // whether or not the row carries a description.
                 Layout.alignment: Qt.AlignTop
 
-                onToggled: {
-                    if (root.completing) {
-                        return;
+                // Disclosure triangle in the leading gutter, where KDE's tree
+                // views put it. The gutter is held open across the whole list
+                // so rows with and without sub-tasks stay aligned.
+                Item {
+                    visible: root.showCollapseGutter
+                    implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                    implicitHeight: Kirigami.Units.iconSizes.smallMedium
+
+                    QQC2.ToolButton {
+                        anchors.fill: parent
+                        visible: root.canCollapse
+                        padding: 0
+                        display: QQC2.AbstractButton.IconOnly
+                        icon.name: root.isCollapsed ? "arrow-right" : "arrow-down"
+                        icon.width: Kirigami.Units.iconSizes.small
+                        icon.height: Kirigami.Units.iconSizes.small
+                        text: root.isCollapsed
+                            ? i18nc("@action:button", "Show sub-tasks")
+                            : i18nc("@action:button", "Hide sub-tasks")
+
+                        onClicked: root.collapseToggled()
+
+                        QQC2.ToolTip.text: text
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
-                    root.completing = true;
-                    completeTimer.start();
+                }
+
+                PriorityBadge {
+                    priority: root.priority
+                    checked: root.isChecked || root.completing
+                    accent: root.priorityColor.a > 0 ? root.priorityColor : Kirigami.Theme.textColor
+
+                    Layout.alignment: Qt.AlignTop
+
+                    onToggled: {
+                        if (root.completing) {
+                            return;
+                        }
+                        root.completing = true;
+                        completeTimer.start();
+                    }
                 }
             }
 
@@ -252,6 +299,7 @@ Delegates.RoundedItemDelegate {
                     spacing: Kirigami.Units.largeSpacing
                     visible: root.hasDue || root.showProject || root.labels.length > 0
                         || root.noteCount > 0 || root.deadlineText !== ""
+                        || root.subtaskCount > 0
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     Layout.topMargin: Kirigami.Units.smallSpacing * 0.5
@@ -291,6 +339,43 @@ Delegates.RoundedItemDelegate {
                                 text: labelChip.modelData
                                 font: Kirigami.Theme.smallFont
                                 opacity: 0.6
+                            }
+                        }
+                    }
+
+                    // Sub-task progress, the way Todoist reads it: done out of
+                    // total, counting sub-tasks hidden by a collapse or by the
+                    // completed filter just the same.
+                    RowLayout {
+                        spacing: Kirigami.Units.smallSpacing * 0.5
+                        visible: root.subtaskCount > 0
+
+                        Kirigami.Icon {
+                            source: "view-list-tree"
+                            isMask: true
+                            color: Kirigami.Theme.disabledTextColor
+                            implicitWidth: Kirigami.Units.iconSizes.small
+                            implicitHeight: Kirigami.Units.iconSizes.small
+                        }
+                        QQC2.Label {
+                            text: i18nc("@label completed of total sub-tasks", "%1/%2",
+                                        root.subtaskCompletedCount, root.subtaskCount)
+                            font: Kirigami.Theme.smallFont
+                            opacity: 0.6
+
+                            // Pluralised on the total, which is what varies;
+                            // "%1 of %2" cannot be, since KLocalizedString
+                            // takes its plural from the first argument.
+                            QQC2.ToolTip.text: i18ncp("@info:tooltip",
+                                                      "%1 sub-task, %2 completed",
+                                                      "%1 sub-tasks, %2 completed",
+                                                      root.subtaskCount,
+                                                      root.subtaskCompletedCount)
+                            QQC2.ToolTip.visible: subtaskHover.hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                            HoverHandler {
+                                id: subtaskHover
                             }
                         }
                     }

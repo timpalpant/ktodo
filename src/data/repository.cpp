@@ -678,6 +678,24 @@ QVector<Item> Repository::subtasks(const QString &parentId) const
     return itemsFromSql(QStringLiteral("WHERE parent_id = ? ORDER BY child_order ASC"), {parentId});
 }
 
+QHash<QString, SubtaskCount> Repository::subtaskCounts() const
+{
+    QHash<QString, SubtaskCount> out;
+    QSqlQuery q(Database::instance().db());
+    if (!q.exec(QStringLiteral("SELECT parent_id, COUNT(*), SUM(checked) FROM items "
+                               "WHERE parent_id IS NOT NULL AND parent_id != '' GROUP BY parent_id"))) {
+        qWarning() << "ktodo: subtask count query failed" << q.lastError().text();
+        return out;
+    }
+    while (q.next()) {
+        SubtaskCount count;
+        count.total = q.value(1).toInt();
+        count.completed = q.value(2).toInt();
+        out.insert(q.value(0).toString(), count);
+    }
+    return out;
+}
+
 QVector<Label> Repository::labels() const
 {
     QVector<Label> out;
@@ -947,6 +965,8 @@ void Repository::updateItem(const QString &id, const QJsonObject &changes)
                 i.due = d.contains(QStringLiteral("date")) ? Due::fromJson(d) : DueDate::guessLocal(s);
                 i.due.string = s;
             }
+        } else if (key == QLatin1String("is_collapsed")) {
+            i.isCollapsed = it.value().toBool();
         } else if (key == QLatin1String("deadline")) {
             i.deadline = it.value().isNull() ? Due() : Due::fromJson(it.value().toObject());
         }
@@ -994,6 +1014,28 @@ void Repository::setItemLabels(const QString &id, const QStringList &labels)
 void Repository::setItemAssignee(const QString &id, const QString &userId)
 {
     updateItem(id, QJsonObject{{QStringLiteral("responsible_uid"), userId.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(userId)}});
+}
+
+void Repository::setItemCollapsed(const QString &id, bool collapsed)
+{
+    const Item existing = item(id);
+    if (existing.id.isEmpty() || existing.isCollapsed == collapsed) {
+        return;
+    }
+
+    // Folding is a write to the task, which a read-only collaborator may not
+    // make. Keeping it on this device costs only cross-client agreement and
+    // beats queueing a command the server would reject.
+    if (project(existing.projectId).isReadOnly()) {
+        Item updated = existing;
+        updated.isCollapsed = collapsed;
+        upsertItem(updated);
+        Q_EMIT changed();
+        Q_EMIT itemsChanged();
+        return;
+    }
+
+    updateItem(id, QJsonObject{{QStringLiteral("is_collapsed"), collapsed}});
 }
 
 void Repository::moveItem(const QString &id, const QString &projectId, const QString &sectionId, const QString &parentId)
