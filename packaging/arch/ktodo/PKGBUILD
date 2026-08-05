@@ -35,7 +35,7 @@ source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgv
 # from ktodo-$pkgver.tar.gz.sha256 in the release; the release workflow prints
 # the line to paste. An unreplaced placeholder fails the build, which is the
 # point -- a wrong hash must stop the build, not be waved through.
-sha256sums=('REPLACE_WITH_RELEASE_SHA256')
+sha256sums=('f893ff9d0c180d3af9be83f7e1d01f66da53074837690ee388b9ae152cdb763e')
 
 # Todoist OAuth client registered for this package. A desktop application is a
 # "public client" under RFC 8252: anything shipped in the binary can be
