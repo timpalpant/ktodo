@@ -80,6 +80,11 @@
   </provides>
 
   <releases>
+    <release version="1.1.1" date="2026-08-05">
+      <description>
+        <p>Fix Show Completed Tasks, which left the list empty.</p>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-08-04">
       <description>
         <p>Collapse and expand subtasks in the task list.</p>

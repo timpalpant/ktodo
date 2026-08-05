@@ -84,4 +84,4 @@ modules:
       # Tagged release manifests must pin a tag or commit rather than a branch.
       - type: git
         url: https://github.com/timpalpant/ktodo.git
-        tag: v1.1.0
+        tag: v1.1.1
