@@ -27,7 +27,7 @@ jobs:
             knotifications kwallet kiconthemes kwindowsystem \
             gettext
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trust the workspace
         # The container runs as root while the checkout is owned by the runner
@@ -74,7 +74,7 @@ jobs:
             knotifications kwallet kiconthemes kwindowsystem \
             gettext appstream desktop-file-utils
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -101,7 +101,7 @@ jobs:
       - name: Install dependencies
         run: pacman -Syu --noconfirm --needed git clang
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check clang-format
         run: |
@@ -116,7 +116,7 @@ jobs:
       - name: Install dependencies
         run: pacman -Syu --noconfirm --needed base-devel git pacman-contrib
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -156,7 +156,7 @@ jobs:
       - name: Build the pacman package
         run: ./packaging/build-arch-package.sh --outdir "$PWD/dist"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ktodo-pacman-package
           path: dist/*.pkg.tar.zst
@@ -179,7 +179,7 @@ jobs:
             libkf6notifications-dev libkf6wallet-dev libkf6iconthemes-dev \
             libkf6windowsystem-dev libkirigami-dev kirigami-addons-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the package
         env:
@@ -196,7 +196,7 @@ jobs:
           cpack --config build/CPackConfig.cmake -G DEB -B "$PWD/dist"
           for package in dist/*.deb; do sha256sum "$package" > "$package.sha256"; done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ktodo-deb-package
           path: |
@@ -221,7 +221,7 @@ jobs:
             kf6-kirigami-addons-devel
           dnf clean all
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the package
         env:
@@ -238,7 +238,7 @@ jobs:
           cpack --config build/CPackConfig.cmake -G RPM -B "$PWD/dist"
           for package in dist/*.rpm; do sha256sum "$package" > "$package.sha256"; done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ktodo-rpm-package
           path: |
@@ -250,7 +250,7 @@ jobs:
     name: Flatpak
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Stamp in the OAuth credentials
         # Optional: without these the Flatpak builds fine but cannot sign in.
@@ -282,7 +282,7 @@ jobs:
             org.kde.Platform//6.11 org.kde.Sdk//6.11
 
       - name: Cache the flatpak-builder state
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .flatpak-builder
           key: flatpak-builder-${{ hashFiles('packaging/flatpak/*.yml') }}
@@ -312,7 +312,7 @@ jobs:
           flatpak build-bundle flatpak-repo ktodo.flatpak \
             io.github.timpalpant.ktodo
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ktodo-flatpak
           path: ktodo.flatpak

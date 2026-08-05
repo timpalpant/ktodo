@@ -33,18 +33,23 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         with:
           # First release can create the Pages site; later runs are idempotent.
           enablement: true
 
       - name: Upload the site
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs
+          # Since v4 this action drops dotfiles, which would silently leave
+          # docs/.nojekyll out of the artifact and hand the site back to
+          # Jekyll -- it would then ignore any file or directory starting
+          # with an underscore.
+          include-hidden-files: true
 
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

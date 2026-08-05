@@ -37,7 +37,7 @@ jobs:
             knotifications kwallet kiconthemes kwindowsystem \
             gettext appstream desktop-file-utils
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -81,7 +81,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -121,7 +121,7 @@ jobs:
             echo "::warning::PKGBUILD still holds the placeholder checksum; set it to $digest"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: source-tarball
           path: |
@@ -138,7 +138,7 @@ jobs:
       - name: Install dependencies
         run: pacman -Syu --noconfirm --needed base-devel git pacman-contrib sudo
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Stamp OAuth credentials into the package input
         env:
@@ -153,7 +153,7 @@ jobs:
       - name: Build the package
         run: ./packaging/build-arch-package.sh --outdir "$PWD/dist"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: arch-package
           path: |
@@ -179,7 +179,7 @@ jobs:
             libkf6notifications-dev libkf6wallet-dev libkf6iconthemes-dev \
             libkf6windowsystem-dev libkirigami-dev kirigami-addons-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the package
         env:
@@ -196,7 +196,7 @@ jobs:
           cpack --config build/CPackConfig.cmake -G DEB -B "$PWD/dist"
           for package in dist/*.deb; do sha256sum "$package" > "$package.sha256"; done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: deb-package
           path: |
@@ -222,7 +222,7 @@ jobs:
             kf6-kirigami-addons-devel
           dnf clean all
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the package
         env:
@@ -239,7 +239,7 @@ jobs:
           cpack --config build/CPackConfig.cmake -G RPM -B "$PWD/dist"
           for package in dist/*.rpm; do sha256sum "$package" > "$package.sha256"; done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rpm-package
           path: |
@@ -252,7 +252,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Stamp OAuth credentials into the Flatpak manifest
         env:
@@ -294,7 +294,7 @@ jobs:
             io.github.timpalpant.ktodo
           sha256sum ktodo.flatpak > ktodo.flatpak.sha256
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: flatpak-bundle
           path: |
@@ -307,7 +307,7 @@ jobs:
     needs: [source, archpkg, deb, rpm, flatpak]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -315,7 +315,7 @@ jobs:
       - name: List what will be published
         run: ls -la artifacts
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           # Drafted rather than published: the release PKGBUILD checksum must
           # be recorded before the release is announced.
