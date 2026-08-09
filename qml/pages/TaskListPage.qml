@@ -16,12 +16,35 @@ Kirigami.ScrollablePage {
     property string filterQuery: ""
     property string pageTitle: ""
     property string pageIcon: ""
+    property bool showUpcomingCalendar: false
+    property date agendaDate: new Date()
 
     readonly property var projectInfo: projectId !== "" ? App.projectDetails(projectId) : ({})
     readonly property bool isProject: mode === TaskModel.ProjectTasks || mode === TaskModel.Inbox
     readonly property bool readOnly: projectInfo.readOnly ?? false
 
     title: pageTitle
+
+    function scrollToAgendaDate(date) {
+        agendaDate = date;
+        const row = taskModel.rowForDate(date);
+        if (row >= 0) {
+            taskListView.positionViewAtIndex(row, ListView.Beginning);
+        }
+    }
+
+    function updateAgendaDateFromViewport() {
+        if (!showUpcomingCalendar || taskListView.count === 0) {
+            return;
+        }
+        const calendarHeight = taskListView.headerItem?.height ?? 0;
+        const row = taskListView.indexAt(taskListView.width / 2,
+                                         taskListView.contentY + calendarHeight + 1);
+        const date = taskModel.dateForRow(row);
+        if (date && !isNaN(date.getTime())) {
+            agendaDate = date;
+        }
+    }
 
     titleDelegate: RowLayout {
         // Match Kirigami's default title delegate: the header can shrink this
@@ -149,6 +172,19 @@ Kirigami.ScrollablePage {
 
         model: taskModel
 
+        headerPositioning: root.showUpcomingCalendar
+            ? ListView.OverlayHeader : ListView.InlineHeader
+        header: UpcomingCalendar {
+            width: taskListView.width
+            visible: root.showUpcomingCalendar
+            implicitHeight: visible ? contentImplicitHeight : 0
+            selectedDate: root.agendaDate
+            agendaModel: taskModel
+            onDateSelected: date => root.scrollToAgendaDate(date)
+        }
+
+        onMovementEnded: root.updateAgendaDateFromViewport()
+
         // The model rebuilds by resetting, which drops the view back to the
         // top. Every sync does this, so without restoring the offset the list
         // jumps under the user whenever a reorder or a poll lands.
@@ -227,6 +263,9 @@ Kirigami.ScrollablePage {
             required property bool showProject
             required property bool isPending
 
+            readonly property bool isOverdueHeader: row.isHeader
+                && root.mode === TaskModel.Upcoming && row.headerId === "overdue"
+
             width: ListView.view.width
             implicitHeight: isHeader ? sectionHeader.implicitHeight : taskRow.implicitHeight
             height: implicitHeight
@@ -246,10 +285,32 @@ Kirigami.ScrollablePage {
                 }
 
                 contentItem: RowLayout {
+                    QQC2.ToolButton {
+                        text: row.isCollapsed
+                            ? i18nc("@action:button", "Expand overdue tasks")
+                            : i18nc("@action:button", "Collapse overdue tasks")
+                        icon.name: row.isCollapsed ? "arrow-right" : "arrow-down"
+                        display: QQC2.AbstractButton.IconOnly
+                        visible: row.isOverdueHeader
+                        onClicked: taskModel.toggleOverdueCollapsed()
+
+                        QQC2.ToolTip.text: text
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    }
+
                     Kirigami.Heading {
                         text: row.headerText
                         level: 4
                         Layout.fillWidth: true
+                    }
+
+                    QQC2.Button {
+                        text: i18nc("@action:button", "Reschedule")
+                        icon.name: "view-calendar"
+                        flat: true
+                        visible: row.isOverdueHeader
+                        onClicked: overdueScheduler.open()
                     }
 
                     // Revealed on hover: a destructive action sitting
@@ -466,6 +527,13 @@ Kirigami.ScrollablePage {
         property string taskId: ""
 
         onPicked: dueString => App.setTaskDue(taskId, dueString)
+    }
+
+    DueDatePicker {
+        id: overdueScheduler
+
+        allowNoDate: false
+        onPicked: dueString => App.rescheduleOverdueTasks(dueString)
     }
 
     Kirigami.PromptDialog {

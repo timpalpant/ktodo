@@ -90,7 +90,6 @@ TaskQuery TaskModel::buildQuery() const
     case Upcoming:
         q.kind = TaskQuery::Upcoming;
         q.rangeStart = QDate::currentDate();
-        q.rangeEnd = QDate::currentDate().addDays(30);
         break;
     case LabelTasks:
         q.kind = TaskQuery::Label;
@@ -112,6 +111,57 @@ TaskQuery TaskModel::buildQuery() const
         break;
     }
     return q;
+}
+
+int TaskModel::rowForDate(const QDate &date) const
+{
+    if (m_mode != Upcoming || !date.isValid()) {
+        return -1;
+    }
+
+    // Empty days are represented by the next agenda group, which makes a
+    // calendar tap useful without filling the list with placeholder rows.
+    for (int row = 0; row < m_rows.size(); ++row) {
+        const Row &candidate = m_rows.at(row);
+        if (!candidate.isHeader) {
+            continue;
+        }
+        const QDate candidateDate = QDate::fromString(candidate.headerId, Qt::ISODate);
+        if (candidateDate >= date) {
+            return row;
+        }
+    }
+    return -1;
+}
+
+int TaskModel::taskCountForDate(const QDate &date) const
+{
+    if (m_mode != Upcoming || !date.isValid()) {
+        return 0;
+    }
+    return m_taskCountsByDate.value(date);
+}
+
+QDate TaskModel::dateForRow(int row) const
+{
+    if (m_mode != Upcoming || row < 0 || row >= m_rows.size()) {
+        return {};
+    }
+    for (int i = row; i >= 0; --i) {
+        if (m_rows.at(i).isHeader) {
+            return QDate::fromString(m_rows.at(i).headerId, Qt::ISODate);
+        }
+    }
+    return {};
+}
+
+void TaskModel::toggleOverdueCollapsed()
+{
+    if (m_mode != Upcoming) {
+        return;
+    }
+    m_overdueCollapsed = !m_overdueCollapsed;
+    rebuild();
 }
 
 int TaskModel::heightOf(const QString &id, Build &build)
@@ -169,7 +219,14 @@ void TaskModel::rebuild()
     const QVector<Item> items = repo->items(buildQuery());
 
     QVector<Row> rows;
+    QHash<QDate, int> taskCountsByDate;
     int taskCount = 0;
+
+    if (m_mode == Upcoming) {
+        for (const Item &i : items) {
+            ++taskCountsByDate[i.due.localDate()];
+        }
+    }
 
     // Index children so sub-tasks can be attached to their parent in one pass.
     Build build;
@@ -221,9 +278,35 @@ void TaskModel::rebuild()
             }
         }
     } else if (m_mode == Upcoming) {
+        QVector<Item> overdue;
+        for (const Item &i : items) {
+            if (!i.checked && DueDate::isOverdue(i.due)) {
+                overdue.append(i);
+            }
+        }
+
+        if (!overdue.isEmpty()) {
+            Row header;
+            header.isHeader = true;
+            header.headerText = i18n("Overdue");
+            header.headerId = QStringLiteral("overdue");
+            header.canCollapse = true;
+            header.headerCollapsed = m_overdueCollapsed;
+            rows.append(header);
+
+            if (!m_overdueCollapsed) {
+                for (const Item &i : overdue) {
+                    rows.append(makeRow(i, build, 0, false));
+                }
+            }
+        }
+
         // One group per calendar day.
         QString currentDay;
         for (const Item &i : items) {
+            if (!i.checked && DueDate::isOverdue(i.due)) {
+                continue;
+            }
             const QDate date = i.due.localDate();
             const QString key = date.toString(Qt::ISODate);
             if (key != currentDay) {
@@ -252,9 +335,15 @@ void TaskModel::rebuild()
             collapsible = collapsible || r.canCollapse;
         }
     }
+    // A collapsed Overdue section still contains tasks and must not trigger
+    // the empty-list placeholder over its header.
+    if (m_mode == Upcoming) {
+        taskCount = items.size();
+    }
 
     beginResetModel();
     m_rows = rows;
+    m_taskCountsByDate = taskCountsByDate;
     endResetModel();
 
     if (m_taskCount != taskCount) {
@@ -668,7 +757,7 @@ QVariant TaskModel::data(const QModelIndex &index, int role) const
     case CanCollapseRole:
         return row.canCollapse;
     case IsCollapsedRole:
-        return row.canCollapse && item.isCollapsed;
+        return row.isHeader ? row.headerCollapsed : (row.canCollapse && item.isCollapsed);
     case SubtaskCountRole:
         return row.subtasks.total;
     case SubtaskCompletedCountRole:

@@ -176,6 +176,23 @@ void Application::clearTaskDue(const QString &id)
     touch();
 }
 
+void Application::rescheduleOverdueTasks(const QString &dueString)
+{
+    if (dueString.isEmpty()) {
+        return;
+    }
+
+    TaskQuery query;
+    query.kind = TaskQuery::Upcoming;
+    query.rangeStart = QDate::currentDate();
+    for (const Item &item : m_repo->items(query)) {
+        if (!item.checked && DueDate::isOverdue(item.due)) {
+            m_repo->setItemDue(item.id, dueString);
+        }
+    }
+    touch();
+}
+
 void Application::setTaskPriority(const QString &id, int uiPriority)
 {
     m_repo->setItemPriority(id, 5 - qBound(1, uiPriority, 4));

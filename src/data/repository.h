@@ -31,7 +31,6 @@ struct TaskQuery {
     QString filterQuery;
     QString searchText;
     QDate rangeStart;
-    QDate rangeEnd;
     bool includeCompleted = false;
 };
 

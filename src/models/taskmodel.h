@@ -111,6 +111,15 @@ public:
 
     Q_INVOKABLE void refresh();
 
+    /// Row of the requested day in Upcoming, or the next populated day.
+    Q_INVOKABLE int rowForDate(const QDate &date) const;
+    /// Number of tasks due on @p date in the current Upcoming result.
+    Q_INVOKABLE int taskCountForDate(const QDate &date) const;
+    /// Calendar day containing @p row, walking back over its day header.
+    Q_INVOKABLE QDate dateForRow(int row) const;
+    /// Hides or reveals Upcoming's special overdue group locally.
+    Q_INVOKABLE void toggleOverdueCollapsed();
+
     /**
      * Hides or reveals the sub-tasks of the task at @p index.
      *
@@ -169,6 +178,8 @@ private:
         SubtaskCount subtasks;
         /// Levels of descendants, counted whether or not they are shown.
         int subtreeHeight = 0;
+        /// Collapse state for synthetic headers such as Upcoming's Overdue.
+        bool headerCollapsed = false;
     };
 
     struct Drop {
@@ -201,6 +212,7 @@ private:
     QVector<QString> siblingIds(const Drop &drop, const QString &excludeId = {}) const;
 
     QVector<Row> m_rows;
+    QHash<QDate, int> m_taskCountsByDate;
     Mode m_mode = Today;
     QString m_projectId;
     QString m_labelName;
@@ -212,4 +224,5 @@ private:
     bool m_rebuildQueued = false;
     bool m_reordering = false;
     bool m_rebuildDeferred = false;
+    bool m_overdueCollapsed = false;
 };

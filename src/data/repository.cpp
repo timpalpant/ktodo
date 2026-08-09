@@ -651,10 +651,10 @@ QVector<Item> Repository::items(const TaskQuery &query) const
 
     case TaskQuery::Upcoming:
         where = QStringLiteral("WHERE %1 AND due_date IS NOT NULL "
-                               "AND due_date >= ? AND due_date <= ? "
+                               "AND (due_date >= ? OR checked = 0) "
                                "ORDER BY due_date ASC, priority DESC, child_order ASC")
                     .arg(active);
-        binds << query.rangeStart.toString(Qt::ISODate) << query.rangeEnd.toString(Qt::ISODate) + QStringLiteral("T23:59:59");
+        binds << query.rangeStart.toString(Qt::ISODate);
         break;
 
     case TaskQuery::Label:

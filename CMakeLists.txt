@@ -147,6 +147,7 @@ qt_add_qml_module(ktodo
         qml/components/DueChip.qml
         qml/components/TaskDragHandle.qml
         qml/components/RecurrencePicker.qml
+        qml/components/UpcomingCalendar.qml
     RESOURCES
         data/icons/io.github.timpalpant.ktodo.svg
 )

@@ -19,6 +19,9 @@ QQC2.Popup {
     /// Emitted with a due string Todoist will parse, or "" to clear the date.
     signal picked(string dueString)
 
+    /// Bulk rescheduling requires a replacement date, unlike task editing.
+    property bool allowNoDate: true
+
     modal: true
     focus: true
     padding: Kirigami.Units.smallSpacing
@@ -137,6 +140,7 @@ QQC2.Popup {
         Delegates.RoundedItemDelegate {
             text: i18n("No Date")
             icon.name: "edit-clear"
+            visible: root.allowNoDate
             Layout.fillWidth: true
             onClicked: root.choose("")
         }

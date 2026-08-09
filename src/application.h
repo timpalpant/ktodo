@@ -63,6 +63,7 @@ public:
     Q_INVOKABLE void deleteTask(const QString &id);
     Q_INVOKABLE void setTaskDue(const QString &id, const QString &dueString);
     Q_INVOKABLE void clearTaskDue(const QString &id);
+    Q_INVOKABLE void rescheduleOverdueTasks(const QString &dueString);
     Q_INVOKABLE void setTaskPriority(const QString &id, int uiPriority);
     Q_INVOKABLE void setTaskAssignee(const QString &id, const QString &userId);
     Q_INVOKABLE void moveTask(const QString &id, const QString &projectId, const QString &sectionId = {});

@@ -43,6 +43,13 @@ QJsonObject completedTask(const QString &id, const QString &parentId, int order)
     return out;
 }
 
+QJsonObject datedTask(const QString &id, const QDate &date, int order)
+{
+    QJsonObject out = task(id, {}, order);
+    out.insert(QStringLiteral("due"), QJsonObject{{QStringLiteral("date"), date.toString(Qt::ISODate)}});
+    return out;
+}
+
 QJsonObject collapsedTask(const QString &id, const QString &parentId, int order)
 {
     QJsonObject out = task(id, parentId, order);
@@ -111,6 +118,8 @@ private Q_SLOTS:
     void showCompletedRevealsCompletedSubtasks();
     void showCompletedAppliesToDateAndLabelViews();
     void completedTasksFetchedSeparatelyJoinTheList();
+    void upcomingCalendarNavigationFindsDaysAndCountsTasks();
+    void upcomingGroupsAndCollapsesOverdueTasks();
 
     void collapsingHidesSubtasksAndSyncsTheState();
     void subtaskCountsIncludeHiddenCompletedChildren();
@@ -403,6 +412,72 @@ void TaskModelTest::completedTasksFetchedSeparatelyJoinTheList()
     QCoreApplication::processEvents();
     QCOMPARE(rowFor(model, QStringLiteral("archived")), -1);
     QVERIFY(rowFor(model, QStringLiteral("active")) >= 0);
+}
+
+void TaskModelTest::upcomingCalendarNavigationFindsDaysAndCountsTasks()
+{
+    const QDate today = QDate::currentDate();
+    const QDate nextWeek = today.addDays(7);
+    const QDate farFuture = today.addDays(90);
+    load(QJsonArray{
+        datedTask(QStringLiteral("first"), today, 0),
+        datedTask(QStringLiteral("second"), nextWeek, 1),
+        datedTask(QStringLiteral("third"), nextWeek, 2),
+        // Upcoming is not an arbitrary 30-day window: the full future agenda
+        // must remain reachable from the calendar popup.
+        datedTask(QStringLiteral("later"), farFuture, 3),
+    });
+
+    TaskModel model;
+    model.setMode(TaskModel::Upcoming);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(model.taskCountForDate(today), 1);
+    QCOMPARE(model.taskCountForDate(nextWeek), 2);
+    QCOMPARE(model.taskCountForDate(today.addDays(1)), 0);
+
+    const int nextWeekHeader = model.rowForDate(nextWeek);
+    QVERIFY(nextWeekHeader >= 0);
+    QCOMPARE(model.dateForRow(nextWeekHeader), nextWeek);
+    QCOMPARE(model.dateForRow(nextWeekHeader + 1), nextWeek);
+
+    // Tapping an empty day advances to the next populated agenda group.
+    QCOMPARE(model.rowForDate(today.addDays(1)), nextWeekHeader);
+    QVERIFY(model.rowForDate(farFuture) >= 0);
+    QCOMPARE(model.dateForRow(model.rowForDate(farFuture)), farFuture);
+}
+
+void TaskModelTest::upcomingGroupsAndCollapsesOverdueTasks()
+{
+    const QDate today = QDate::currentDate();
+    load(QJsonArray{
+        datedTask(QStringLiteral("late"), today.addDays(-2), 0),
+        datedTask(QStringLiteral("current"), today, 1),
+    });
+
+    TaskModel model;
+    model.setMode(TaskModel::Upcoming);
+    QCoreApplication::processEvents();
+
+    const int overdueHeader = headerFor(model, QStringLiteral("overdue"));
+    QCOMPARE(overdueHeader, 0);
+    QCOMPARE(model.data(model.index(overdueHeader, 0), TaskModel::HeaderTextRole).toString(), QStringLiteral("Overdue"));
+    QVERIFY(model.data(model.index(overdueHeader, 0), TaskModel::CanCollapseRole).toBool());
+    QVERIFY(!model.data(model.index(overdueHeader, 0), TaskModel::IsCollapsedRole).toBool());
+    QVERIFY(rowFor(model, QStringLiteral("late")) > overdueHeader);
+    QCOMPARE(model.taskCount(), 2);
+
+    model.toggleOverdueCollapsed();
+
+    QCOMPARE(headerFor(model, QStringLiteral("overdue")), 0);
+    QVERIFY(model.data(model.index(0, 0), TaskModel::IsCollapsedRole).toBool());
+    QCOMPARE(rowFor(model, QStringLiteral("late")), -1);
+    QVERIFY(rowFor(model, QStringLiteral("current")) >= 0);
+    QCOMPARE(model.taskCount(), 2);
+    QCOMPARE(model.taskCountForDate(today.addDays(-2)), 1);
+
+    model.toggleOverdueCollapsed();
+    QVERIFY(rowFor(model, QStringLiteral("late")) > 0);
 }
 
 void TaskModelTest::collapsingHidesSubtasksAndSyncsTheState()
