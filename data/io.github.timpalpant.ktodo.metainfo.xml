@@ -80,6 +80,15 @@
   </provides>
 
   <releases>
+    <release version="1.2.0" date="2026-08-09">
+      <description>
+        <ul>
+          <li>Add an Upcoming agenda with a calendar navigator.</li>
+          <li>Group overdue tasks with collapse and bulk rescheduling controls.</li>
+          <li>Add recurring schedules to the Add Task dialog.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.1" date="2026-08-05">
       <description>
         <p>Fix Show Completed Tasks, which left the list empty.</p>
