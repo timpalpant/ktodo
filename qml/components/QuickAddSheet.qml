@@ -20,6 +20,8 @@ Kirigami.Dialog {
     property string projectId: ""
     property string sectionId: ""
     property string dueString: ""
+    property string plainDueString: ""
+    property string recurrenceRule: ""
     property int priority: 4
     property var labels: []
     property string assigneeId: ""
@@ -41,6 +43,8 @@ Kirigami.Dialog {
         projectId = project ?? "";
         sectionId = "";
         dueString = "";
+        plainDueString = "";
+        recurrenceRule = "";
         priority = 4;
         labels = [];
         assigneeId = "";
@@ -107,6 +111,51 @@ Kirigami.Dialog {
         close();
     }
 
+    /// Date used to anchor weekly/monthly repeat choices in the picker.
+    function recurrenceBaseDate() {
+        const today = new Date();
+        const value = plainDueString.toLowerCase();
+        const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+        if (iso) {
+            return new Date(parseInt(iso[1], 10), parseInt(iso[2], 10) - 1,
+                            parseInt(iso[3], 10));
+        }
+        if (value.startsWith("tomorrow")) {
+            today.setDate(today.getDate() + 1);
+        } else if (value === "next week") {
+            today.setDate(today.getDate() + 7);
+        } else if (value === "saturday") {
+            const daysUntilSaturday = (6 - today.getDay() + 7) % 7 || 7;
+            today.setDate(today.getDate() + daysUntilSaturday);
+        }
+        return today;
+    }
+
+    function setSchedule(value) {
+        // Todoist stores the schedule and recurrence in one due string, so a
+        // new one-off schedule intentionally switches Repeat back off. Free
+        // text such as "every Monday" still lights up the Repeat chip.
+        const isRepeating = /^every\b/i.test(value.trim());
+        plainDueString = isRepeating ? "" : value;
+        recurrenceRule = isRepeating ? value : "";
+        dueString = value;
+    }
+
+    function setRecurrence(value) {
+        // "Do not repeat" emits the preserved one-off schedule.
+        if (value === plainDueString) {
+            recurrenceRule = "";
+            dueString = plainDueString;
+        } else {
+            recurrenceRule = value;
+            // Todoist accepts "every … starting …", so Schedule can define
+            // the first occurrence without being discarded by Repeat.
+            const alreadyHasStart = /\b(starting|from)\b/i.test(value);
+            dueString = plainDueString !== "" && !alreadyHasStart
+                ? value + " starting " + plainDueString : value;
+        }
+    }
+
     ProjectsModel {
         id: projectsModel
     }
@@ -138,9 +187,18 @@ Kirigami.Dialog {
             Layout.topMargin: Kirigami.Units.smallSpacing
 
             QQC2.Button {
-                text: root.dueString !== "" ? root.dueString : i18nc("@action:button", "Schedule")
+                text: root.plainDueString !== ""
+                    ? root.plainDueString : i18nc("@action:button", "Schedule")
                 icon.name: "view-calendar-day"
                 onClicked: duePicker.open()
+            }
+
+            QQC2.Button {
+                text: root.recurrenceRule !== ""
+                    ? root.recurrenceRule : i18nc("@action:button", "Repeat")
+                icon.name: root.recurrenceRule !== ""
+                    ? "view-refresh" : "view-calendar-day"
+                onClicked: recurrencePicker.open()
             }
 
             QQC2.Button {
@@ -223,7 +281,16 @@ Kirigami.Dialog {
 
     DueDatePicker {
         id: duePicker
-        onPicked: value => root.dueString = value
+        onPicked: value => root.setSchedule(value)
+    }
+
+    RecurrencePicker {
+        id: recurrencePicker
+
+        currentRule: root.recurrenceRule
+        baseDate: root.recurrenceBaseDate()
+        plainDate: root.plainDueString
+        onPicked: value => root.setRecurrence(value)
     }
 
     LabelPicker {

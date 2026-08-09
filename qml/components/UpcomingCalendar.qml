@@ -157,8 +157,10 @@ Item {
 
                     text: Qt.formatDate(dayDate, "dddd d MMMM")
                     Accessible.name: dueCount > 0
-                        ? i18ncp("@info:accessible", "%1, %2 task", "%1, %2 tasks",
-                                 dueCount, Qt.formatDate(dayDate, "dddd d MMMM"), dueCount)
+                        // i18ncp reserves %1 for its plural-count argument;
+                        // the date is therefore the sole additional argument.
+                        ? i18ncp("@info:accessible", "%2, %1 task", "%2, %1 tasks",
+                                 dueCount, Qt.formatDate(dayDate, "dddd d MMMM"))
                         : Qt.formatDate(dayDate, "dddd d MMMM")
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
