@@ -279,6 +279,8 @@ Kirigami.ScrollablePage {
 
                 readonly property bool deletable: root.isProject && !root.readOnly
                     && row.headerId !== ""
+                readonly property bool addTaskEnabled: root.isProject && !root.readOnly
+                    && row.headerId !== ""
 
                 HoverHandler {
                     id: headerHover
@@ -334,6 +336,20 @@ Kirigami.ScrollablePage {
                             sectionDeletePrompt.sectionName = row.headerText;
                             sectionDeletePrompt.open();
                         }
+                    }
+
+                    // Last in the row so it lands in the same column as the
+                    // delete button on the task rows below it.
+                    QQC2.ToolButton {
+                        icon.name: "list-add"
+                        display: QQC2.AbstractButton.IconOnly
+                        text: i18nc("@action:button", "Add task to this section")
+                        visible: sectionHeader.addTaskEnabled
+                        onClicked: applicationWindow().quickAddTask(root.projectId, row.headerId)
+
+                        QQC2.ToolTip.text: text
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
                 }
             }

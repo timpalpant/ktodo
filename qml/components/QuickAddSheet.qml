@@ -39,9 +39,9 @@ Kirigami.Dialog {
     bottomPadding: Kirigami.Units.largeSpacing * 2
 
 
-    function openFor(project) {
+    function openFor(project, ssecId) {
         projectId = project ?? "";
-        sectionId = "";
+        sectionId = ssecId ?? "";
         dueString = "";
         plainDueString = "";
         recurrenceRule = "";
