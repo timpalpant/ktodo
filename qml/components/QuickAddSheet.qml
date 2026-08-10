@@ -19,6 +19,7 @@ Kirigami.Dialog {
 
     property string projectId: ""
     property string sectionId: ""
+    property string parentId: ""
     property string dueString: ""
     property string plainDueString: ""
     property string recurrenceRule: ""
@@ -26,7 +27,9 @@ Kirigami.Dialog {
     property var labels: []
     property string assigneeId: ""
 
-    title: i18nc("@title:window", "Add Task")
+    title: parentId !== ""
+        ? i18nc("@title:window", "Add Sub-task")
+        : i18nc("@title:window", "Add Task")
 
     preferredWidth: Kirigami.Units.gridUnit * 32
     standardButtons: Kirigami.Dialog.NoButton
@@ -39,9 +42,18 @@ Kirigami.Dialog {
     bottomPadding: Kirigami.Units.largeSpacing * 2
 
 
-    function openFor(project, ssecId) {
-        projectId = project ?? "";
-        sectionId = ssecId ?? "";
+    function openFor(project, ssecId, parent) {
+        parentId = parent ?? "";
+        // Todoist rejects a child in a different project, so a sub-task takes
+        // its parent's placement rather than whatever the caller passed.
+        if (parentId !== "") {
+            const details = App.taskDetails(parentId);
+            projectId = details.projectId ?? "";
+            sectionId = details.sectionId ?? "";
+        } else {
+            projectId = project ?? "";
+            sectionId = ssecId ?? "";
+        }
         dueString = "";
         plainDueString = "";
         recurrenceRule = "";
@@ -101,7 +113,7 @@ Kirigami.Dialog {
         App.addTask(parsed.content,
                     root.projectId,
                     root.sectionId,
-                    "",
+                    root.parentId,
                     root.dueString,
                     5 - (parsed.priority > 0 ? parsed.priority : root.priority),
                     allLabels,
@@ -239,6 +251,8 @@ Kirigami.Dialog {
                     return details.name ?? i18nc("@action:button", "Project");
                 }
                 icon.name: "folder"
+                // A sub-task cannot be moved out of its parent's project.
+                visible: root.parentId === ""
                 onClicked: projectPicker.open()
             }
 

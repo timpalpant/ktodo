@@ -110,8 +110,8 @@ Kirigami.ApplicationWindow {
     }
 
     /// Entry point for pages, which cannot see ids declared in this file.
-    function quickAddTask(projectId, sectionId) {
-        quickAdd.openFor(projectId ?? "", sectionId);
+    function quickAddTask(projectId, sectionId, parentId) {
+        quickAdd.openFor(projectId ?? "", sectionId, parentId);
     }
 
     /// Pages route comment threads through here for the same reason.

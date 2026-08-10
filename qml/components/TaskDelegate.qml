@@ -73,6 +73,7 @@ Delegates.RoundedItemDelegate {
     signal completeRequested
     signal deleteRequested
     signal scheduleRequested
+    signal addSubtaskRequested
     signal dragStarted(int index)
     signal dragMoved(int insertIndex, int targetIndex, bool asSubtask)
     signal dragEnded(int fromIndex, int insertIndex, int targetIndex, bool asSubtask, bool moved, bool canceled)
@@ -463,6 +464,16 @@ Delegates.RoundedItemDelegate {
                 }
             }
 
+            QQC2.ToolButton {
+                icon.name: "list-add"
+                display: QQC2.AbstractButton.IconOnly
+                text: i18nc("@action:button", "Add sub-task")
+                onClicked: root.addSubtaskRequested()
+
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
             QQC2.ToolButton {
                 icon.name: "view-calendar-day"
                 display: QQC2.AbstractButton.IconOnly

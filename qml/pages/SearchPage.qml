@@ -58,6 +58,7 @@ Kirigami.ScrollablePage {
                 scheduler.taskId = delegateItem.taskId;
                 scheduler.open();
             }
+            onAddSubtaskRequested: applicationWindow().quickAddTask("", "", delegateItem.taskId)
         }
 
         Kirigami.PlaceholderMessage {

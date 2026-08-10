@@ -448,6 +448,7 @@ Kirigami.ScrollablePage {
                     scheduler.taskId = row.taskId;
                     scheduler.open();
                 }
+                onAddSubtaskRequested: applicationWindow().quickAddTask("", "", row.taskId)
             }
         }
 
