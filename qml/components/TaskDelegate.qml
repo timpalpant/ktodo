@@ -424,7 +424,7 @@ Delegates.RoundedItemDelegate {
                 visible: root.assigneeName !== ""
                 implicitWidth: Kirigami.Units.iconSizes.smallMedium
                 implicitHeight: Kirigami.Units.iconSizes.smallMedium
-                Layout.alignment: Qt.AlignTop
+                Layout.alignment: Qt.AlignVCenter
 
                 QQC2.ToolTip.text: i18nc("@info:tooltip", "Assigned to %1", root.assigneeName)
                 QQC2.ToolTip.visible: avatarHover.hovered
