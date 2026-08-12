@@ -316,17 +316,32 @@ Kirigami.Dialog {
                 FormCard.FormButtonDelegate {
                     text: i18nc("@label", "Assignee")
                     description: root.task.assigneeName || i18n("Nobody")
-                    icon.name: "user-identity"
+                    // FormButtonDelegate gained a dedicated "trailing" slot only in
+                    // kirigami-addons 1.12.0 -- Debian trixie ships 1.7.0, where
+                    // assigning to it is not a soft no-op but a hard QML load
+                    // failure ("Cannot assign to non-existent property"), so the
+                    // avatar uses "leading" instead, which has existed since the
+                    // component's introduction. icon.name is cleared whenever the
+                    // avatar is shown so the two do not render side by side --
+                    // "leading" renders before icon.name in the row, and both are
+                    // otherwise independent slots.
+                    icon.name: (root.task.assigneeName ?? "") !== "" ? "" : "user-identity"
                     visible: root.task.canAssign ?? false
                     enabled: !root.readOnly
                     onClicked: assigneePicker.open()
 
-                    trailing: Components.Avatar {
+                    leading: Components.Avatar {
                         name: root.task.assigneeName ?? ""
                         source: root.task.assigneeAvatar ?? ""
                         visible: (root.task.assigneeName ?? "") !== ""
-                        implicitWidth: Kirigami.Units.iconSizes.medium
-                        implicitHeight: Kirigami.Units.iconSizes.medium
+                        // Matches AbstractFormDelegate's own icon.width/icon.height
+                        // (smallMedium), not the old trailing avatar's "medium" --
+                        // the other rows in this card size their icon.name icon via
+                        // that default, and leading is a separate layout slot, so a
+                        // wider avatar here would widen this row's icon column past
+                        // the others and throw off the text alignment between rows.
+                        implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                        implicitHeight: Kirigami.Units.iconSizes.smallMedium
                     }
                 }
             }
