@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(ktodo VERSION 1.3.1 LANGUAGES CXX)
+project(ktodo VERSION 1.3.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -185,12 +185,42 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Native Todoist client for KDE Plasma")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+# Note what is deliberately absent here: qml6-module-org-kde-desktop (the
+# "org.kde.desktop" QQC2 style main.cpp always selects, see the RPM comment
+# below) is not listed because it does not need to be -- on Debian it already
+# arrives as a transitive hard Depends of qml6-module-org-kde-kirigamiaddons-
+# delegates (-> ...-treeview -> qml6-module-org-kde-desktop), confirmed by
+# installing this .deb with --no-install-recommends in a bare debian:trixie
+# container and finding the module still present and loading. Do not add it
+# back without re-checking that chain.
+#
+# libqt6sql6-sqlite is the SQLite Qt driver plugin database.cpp loads via
+# QSqlDatabase::addDatabase("QSQLITE"). dpkg-shlibdeps only captures
+# libqt6sql6 itself (the library ktodo links against), not this plugin, and
+# on a default `apt install` it happens to ride in via libqt6sql6's own
+# Recommends -- but Recommends are not guaranteed (--no-install-recommends,
+# minimal images) and without the plugin ktodo cannot open its local cache
+# and exits immediately. Confirmed by installing this .deb with
+# --no-install-recommends in a bare debian:trixie container:
+# `ktodo: could not open the local cache: Driver not loaded`.
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-    "qml6-module-qtcore, qml6-module-qtquick, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-org-kde-kirigami, qml6-module-org-kde-kirigamiaddons-components, qml6-module-org-kde-kirigamiaddons-datetime, qml6-module-org-kde-kirigamiaddons-delegates, qml6-module-org-kde-kirigamiaddons-formcard")
+    "qml6-module-qtcore, qml6-module-qtquick, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-org-kde-kirigami, qml6-module-org-kde-kirigamiaddons-components, qml6-module-org-kde-kirigamiaddons-datetime, qml6-module-org-kde-kirigamiaddons-delegates, qml6-module-org-kde-kirigamiaddons-formcard, libqt6sql6-sqlite")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Utility")
-set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtdeclarative, kf6-kirigami, kf6-kirigami-addons")
+# kf6-qqc2-desktop-style provides the "org.kde.desktop" QQC2 style main.cpp
+# selects via QQuickStyle::setStyle() whenever QT_QUICK_CONTROLS_STYLE is not
+# already set in the environment. Fedora's RPM auto-Requires only scans
+# linked shared libraries, not QML-engine-loaded style modules, and nothing
+# else in this dependency list pulls it in transitively (unlike Debian, where
+# a kirigami-addons submodule happens to require it) -- without it the QML
+# engine refuses to load at all. Confirmed by installing this .rpm in a bare
+# Fedora container: `module "org.kde.desktop" is not installed`.
+#
+# No separate package is needed for the SQLite Qt driver here: Fedora bundles
+# it directly inside qt6-qtbase (already pulled in transitively via
+# qt6-qtdeclarative), unlike Debian which splits it into libqt6sql6-sqlite.
+set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtdeclarative, kf6-kirigami, kf6-kirigami-addons, kf6-qqc2-desktop-style")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 include(CPack)

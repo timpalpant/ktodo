@@ -29,6 +29,14 @@ depends=(
   'kiconthemes'
   'kwindowsystem'
   'hicolor-icon-theme'
+  # Provides the "org.kde.desktop" QQC2 style main.cpp always selects
+  # (QQuickStyle::setStyle(), guarded only by QT_QUICK_CONTROLS_STYLE not
+  # already being set). Neither kirigami nor kirigami-addons pulls this in on
+  # Arch, so it must be a hard depends here, not optdepends: without it the
+  # QML engine refuses to load at all. Confirmed by building and running this
+  # package in a bare archlinux container: `module "org.kde.desktop" is not
+  # installed`.
+  'qqc2-desktop-style'
 )
 
 makedepends=('git' 'cmake' 'ninja' 'qt6-tools')
