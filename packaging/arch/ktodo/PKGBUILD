@@ -1,7 +1,7 @@
 # Maintainer: Timothy Palpant <tim@palpant.us>
 
 pkgname=ktodo
-pkgver=1.3.2
+pkgver=1.3.3
 pkgrel=1
 pkgdesc='Native Todoist client for KDE Plasma, built with Kirigami'
 arch=('x86_64' 'aarch64')
@@ -43,7 +43,7 @@ source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgv
 # from ktodo-$pkgver.tar.gz.sha256 in the release; the release workflow prints
 # the line to paste. An unreplaced placeholder fails the build, which is the
 # point -- a wrong hash must stop the build, not be waved through.
-sha256sums=('0bffc172f8d0e847c4ff5209b981015e83e18c184a0b0590543e205e71f1c7c3')
+sha256sums=('REPLACE_WITH_RELEASE_SHA256')
 
 # Todoist OAuth client registered for this package. A desktop application is a
 # "public client" under RFC 8252: anything shipped in the binary can be

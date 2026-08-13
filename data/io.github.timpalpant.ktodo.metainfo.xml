@@ -80,6 +80,12 @@
   </provides>
 
   <releases>
+    <release version="1.3.3" date="2026-08-13">
+      <description>
+        <p>Fix rerendering jank in task lists when a sync completes. Lists now
+        update in place instead of tearing down and rebuilding every row.</p>
+      </description>
+    </release>
     <release version="1.3.2" date="2026-08-12">
       <description>
         <p>Fix the Fedora and Arch packages missing the "org.kde.desktop" QQC2
