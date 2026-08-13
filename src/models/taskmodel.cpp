@@ -341,10 +341,8 @@ void TaskModel::rebuild()
         taskCount = items.size();
     }
 
-    beginResetModel();
-    m_rows = rows;
     m_taskCountsByDate = taskCountsByDate;
-    endResetModel();
+    applyRows(std::move(rows));
 
     if (m_taskCount != taskCount) {
         m_taskCount = taskCount;
@@ -353,6 +351,112 @@ void TaskModel::rebuild()
     if (m_hasCollapsibleRows != collapsible) {
         m_hasCollapsibleRows = collapsible;
         Q_EMIT hasCollapsibleRowsChanged();
+    }
+}
+
+/// Header rows key on their section/day id; task rows key on the item id.
+/// Either is stable across a rebuild even when a row's depth, position, or
+/// displayed fields change, which is what lets a sync update rows in place
+/// instead of tearing down the whole list.
+QString TaskModel::keyOf(const Row &row)
+{
+    return row.isHeader ? (QLatin1String("H:") + row.headerId) : (QLatin1String("T:") + row.item.id);
+}
+
+void TaskModel::applyRows(QVector<Row> newRows)
+{
+    if (newRows == m_rows) {
+        return; // A sync that changed nothing this list shows: nothing to do.
+    }
+
+    QVector<QString> oldKeys;
+    oldKeys.reserve(m_rows.size());
+    for (const Row &r : std::as_const(m_rows)) {
+        oldKeys.append(keyOf(r));
+    }
+    QVector<QString> newKeys;
+    newKeys.reserve(newRows.size());
+    for (const Row &r : std::as_const(newRows)) {
+        newKeys.append(keyOf(r));
+    }
+    const QSet<QString> oldKeySet(oldKeys.cbegin(), oldKeys.cend());
+    const QSet<QString> newKeySet(newKeys.cbegin(), newKeys.cend());
+
+    // The rows common to both states, in the order each state has them.
+    QVector<QString> keptOldOrder;
+    for (const QString &k : std::as_const(oldKeys)) {
+        if (newKeySet.contains(k)) {
+            keptOldOrder.append(k);
+        }
+    }
+    QVector<QString> keptNewOrder;
+    for (const QString &k : std::as_const(newKeys)) {
+        if (oldKeySet.contains(k)) {
+            keptNewOrder.append(k);
+        }
+    }
+
+    // A genuine reorder (drag, resort, a mode/query change with nothing in
+    // common) doesn't fit the insert/remove-only model below; reset instead.
+    if (keptOldOrder.isEmpty() || keptOldOrder != keptNewOrder) {
+        beginResetModel();
+        m_rows = std::move(newRows);
+        endResetModel();
+        return;
+    }
+
+    // Drop rows the new result no longer has, batching contiguous runs so
+    // the view animates a block instead of row by row.
+    for (int i = m_rows.size() - 1; i >= 0;) {
+        if (newKeySet.contains(keyOf(m_rows.at(i)))) {
+            --i;
+            continue;
+        }
+        const int last = i;
+        while (i >= 0 && !newKeySet.contains(keyOf(m_rows.at(i)))) {
+            --i;
+        }
+        const int first = i + 1;
+        beginRemoveRows({}, first, last);
+        m_rows.remove(first, last - first + 1);
+        endRemoveRows();
+    }
+
+    // Insert rows the new result added. m_rows now holds exactly the kept
+    // rows in kept order (== keptNewOrder), so walking the target list and
+    // inserting whatever isn't next in that surviving sequence lands every
+    // row at its final index as we go.
+    const QVector<Row> keptRows = m_rows;
+    int consumed = 0;
+    for (int k = 0; k < newRows.size(); ++k) {
+        if (consumed < keptRows.size() && keyOf(keptRows.at(consumed)) == newKeys.at(k)) {
+            ++consumed;
+            continue;
+        }
+        beginInsertRows({}, k, k);
+        m_rows.insert(k, newRows.at(k));
+        endInsertRows();
+    }
+
+    // Positions now match; refresh the content of rows that merely changed,
+    // batching contiguous runs into single dataChanged emissions.
+    Q_ASSERT(m_rows.size() == newRows.size());
+    int changedFirst = -1;
+    for (int i = 0; i < m_rows.size(); ++i) {
+        if (m_rows.at(i) == newRows.at(i)) {
+            if (changedFirst >= 0) {
+                Q_EMIT dataChanged(index(changedFirst), index(i - 1));
+                changedFirst = -1;
+            }
+            continue;
+        }
+        m_rows[i] = newRows.at(i);
+        if (changedFirst < 0) {
+            changedFirst = i;
+        }
+    }
+    if (changedFirst >= 0) {
+        Q_EMIT dataChanged(index(changedFirst), index(m_rows.size() - 1));
     }
 }
 

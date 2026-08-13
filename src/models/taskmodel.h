@@ -180,6 +180,8 @@ private:
         int subtreeHeight = 0;
         /// Collapse state for synthetic headers such as Upcoming's Overdue.
         bool headerCollapsed = false;
+
+        bool operator==(const Row &) const = default;
     };
 
     struct Drop {
@@ -198,6 +200,15 @@ private:
     };
 
     void rebuild();
+    /**
+     * Replaces m_rows with @p newRows, preferring surgical insert/remove/
+     * update signals over a full reset so the view doesn't tear down and
+     * recreate delegates it doesn't need to. Falls back to a reset when the
+     * rows that persist between the two states have been reordered, or when
+     * the two states share nothing (a mode/query change, or the first build).
+     */
+    void applyRows(QVector<Row> newRows);
+    static QString keyOf(const Row &row);
     TaskQuery buildQuery() const;
     /// Builds a task row, filling in what it takes to draw the collapse state.
     Row makeRow(const Todoist::Item &item, Build &build, int depth, bool nested);

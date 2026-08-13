@@ -13,6 +13,7 @@
 
 #include <QCoreApplication>
 #include <QJsonArray>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -126,6 +127,12 @@ private Q_SLOTS:
     void collapsedSubtreeStillCountsTowardTheNestingLimit();
     void droppingIntoACollapsedTaskRevealsIt();
     void collapsingInAReadOnlyProjectStaysLocal();
+
+    void noOpSyncEmitsNothing();
+    void editingATaskUpdatesInPlaceWithoutReset();
+    void addingATaskInsertsWithoutReset();
+    void completingATaskRemovesItsRowWithoutReset();
+    void reorderingFallsBackToAResetButEndsUpCorrect();
 
 private:
     QTemporaryDir m_temp;
@@ -633,6 +640,129 @@ void TaskModelTest::collapsingInAReadOnlyProjectStaysLocal()
     QCOMPARE(rowFor(model, QStringLiteral("child")), -1);
     QVERIFY(Repository::instance()->item(QStringLiteral("parent")).isCollapsed);
     QVERIFY(CommandQueue::instance()->take().isEmpty());
+}
+
+// The rest of this file guards the rebuild path that replaced an
+// unconditional beginResetModel()/endResetModel() on every sync: a full
+// reset tore down and recreated every delegate in the view, which is what
+// showed up as rerendering jank whenever a sync landed. Rebuilds should now
+// emit the narrowest signal that describes what actually changed, and only
+// fall back to a reset when rows that persist across the change have also
+// been reordered.
+
+void TaskModelTest::noOpSyncEmitsNothing()
+{
+    load(QJsonArray{
+        task(QStringLiteral("alpha"), {}, 0),
+        task(QStringLiteral("beta"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy dataChangedSpy(&model, &QAbstractItemModel::dataChanged);
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    // Re-applying the same payload is what a sync that found nothing new
+    // looks like: the repository still emits itemsChanged.
+    load(QJsonArray{
+        task(QStringLiteral("alpha"), {}, 0),
+        task(QStringLiteral("beta"), {}, 1),
+    });
+    QCoreApplication::processEvents();
+
+    QCOMPARE(resetSpy.count(), 0);
+    QCOMPARE(dataChangedSpy.count(), 0);
+    QCOMPARE(insertedSpy.count(), 0);
+    QCOMPARE(removedSpy.count(), 0);
+}
+
+void TaskModelTest::editingATaskUpdatesInPlaceWithoutReset()
+{
+    load(QJsonArray{
+        task(QStringLiteral("alpha"), {}, 0),
+        task(QStringLiteral("beta"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+    const int alpha = rowFor(model, QStringLiteral("alpha"));
+    QVERIFY(alpha >= 0);
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy dataChangedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    Repository::instance()->setItemContent(QStringLiteral("alpha"), QStringLiteral("Renamed"), {});
+    QCoreApplication::processEvents();
+
+    QCOMPARE(resetSpy.count(), 0);
+    QVERIFY(dataChangedSpy.count() >= 1);
+    // The row stayed put; only its content changed.
+    QCOMPARE(rowFor(model, QStringLiteral("alpha")), alpha);
+    QCOMPARE(model.data(model.index(alpha, 0), TaskModel::ContentRole).toString(), QStringLiteral("Renamed"));
+}
+
+void TaskModelTest::addingATaskInsertsWithoutReset()
+{
+    load(QJsonArray{
+        task(QStringLiteral("alpha"), {}, 0),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    Repository::instance()->addItem(QStringLiteral("New task"), QStringLiteral("project"), {}, {}, {}, 1, {}, {}, {});
+    QCoreApplication::processEvents();
+
+    QCOMPARE(resetSpy.count(), 0);
+    QVERIFY(insertedSpy.count() >= 1);
+    QVERIFY(rowFor(model, QStringLiteral("alpha")) >= 0);
+    QCOMPARE(model.taskCount(), 2);
+}
+
+void TaskModelTest::completingATaskRemovesItsRowWithoutReset()
+{
+    load(QJsonArray{
+        task(QStringLiteral("alpha"), {}, 0),
+        task(QStringLiteral("beta"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+    QVERIFY(!model.showCompleted());
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    Repository::instance()->completeItem(QStringLiteral("alpha"));
+    QCoreApplication::processEvents();
+
+    QCOMPARE(resetSpy.count(), 0);
+    QVERIFY(removedSpy.count() >= 1);
+    QCOMPARE(rowFor(model, QStringLiteral("alpha")), -1);
+    QVERIFY(rowFor(model, QStringLiteral("beta")) >= 0);
+}
+
+void TaskModelTest::reorderingFallsBackToAResetButEndsUpCorrect()
+{
+    load(QJsonArray{
+        task(QStringLiteral("alpha"), {}, 0),
+        task(QStringLiteral("beta"), {}, 1),
+    });
+    TaskModel model;
+    configureProjectModel(model);
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    // Swap child_order so the two rows trade places: the surviving rows are
+    // the same set, but no longer in the same relative order.
+    Repository::instance()->reorderItems({{QStringLiteral("alpha"), 1}, {QStringLiteral("beta"), 0}});
+    QCoreApplication::processEvents();
+
+    QVERIFY(resetSpy.count() >= 1);
+    QCOMPARE(rowFor(model, QStringLiteral("beta")), 0);
+    QCOMPARE(rowFor(model, QStringLiteral("alpha")), 1);
 }
 
 QTEST_GUILESS_MAIN(TaskModelTest)

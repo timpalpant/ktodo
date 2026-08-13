@@ -38,6 +38,8 @@ struct TaskQuery {
 struct SubtaskCount {
     int total = 0;
     int completed = 0;
+
+    bool operator==(const SubtaskCount &) const = default;
 };
 
 class Repository : public QObject

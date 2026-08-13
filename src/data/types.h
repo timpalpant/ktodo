@@ -29,6 +29,8 @@ struct Due {
 
     static Due fromJson(const QJsonObject &o);
     QJsonObject toJson() const;
+
+    bool operator==(const Due &) const = default;
 };
 
 struct Project {
@@ -100,6 +102,8 @@ struct Item {
     int uiPriority() const { return 5 - priority; }
 
     static Item fromJson(const QJsonObject &o);
+
+    bool operator==(const Item &) const = default;
 };
 
 struct Label {
