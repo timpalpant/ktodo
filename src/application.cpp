@@ -289,12 +289,14 @@ QString Application::addSubtask(const QString &parentId, const QString &content)
 
 // -- Projects ---------------------------------------------------------------
 
-QString Application::addProject(const QString &name, const QString &color, const QString &parentId, bool favorite)
+QString Application::addProject(const QString &name, const QString &color, const QString &parentId, bool favorite,
+                                const QString &description)
 {
     if (name.trimmed().isEmpty()) {
         return {};
     }
-    const QString id = m_repo->addProject(name.trimmed(), color.isEmpty() ? QStringLiteral("charcoal") : color, parentId, favorite);
+    const QString id = m_repo->addProject(name.trimmed(), color.isEmpty() ? QStringLiteral("charcoal") : color, parentId, favorite,
+                                          description);
     touch();
     return id;
 }
@@ -302,6 +304,12 @@ QString Application::addProject(const QString &name, const QString &color, const
 void Application::renameProject(const QString &id, const QString &name)
 {
     m_repo->updateProject(id, QJsonObject{{QStringLiteral("name"), name}});
+    touch();
+}
+
+void Application::setProjectDescription(const QString &id, const QString &description)
+{
+    m_repo->updateProject(id, QJsonObject{{QStringLiteral("description"), description}});
     touch();
 }
 

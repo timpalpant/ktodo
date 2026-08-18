@@ -23,6 +23,7 @@ FormCard.FormCardPage {
     Component.onCompleted: {
         if (!isNew) {
             nameField.text = project.name ?? "";
+            descriptionField.text = project.description ?? "";
             chosenColor = project.color ?? "charcoal";
             favoriteToggle.checked = project.isFavorite ?? false;
         }
@@ -35,6 +36,14 @@ FormCard.FormCardPage {
             id: nameField
             label: i18nc("@label:textbox", "Name")
             onAccepted: root.save()
+        }
+
+        FormCard.FormDelegateSeparator {}
+
+        FormCard.FormTextAreaDelegate {
+            id: descriptionField
+            label: i18nc("@label:textbox", "Description")
+            placeholderText: i18n("What this project is for")
         }
 
         FormCard.FormDelegateSeparator {}
@@ -136,10 +145,13 @@ FormCard.FormCardPage {
             return;
         }
 
+        const description = descriptionField.text.trim();
+
         if (isNew) {
-            App.addProject(name, chosenColor, "", favoriteToggle.checked);
+            App.addProject(name, chosenColor, "", favoriteToggle.checked, description);
         } else {
             App.renameProject(projectId, name);
+            App.setProjectDescription(projectId, description);
             App.setProjectColor(projectId, chosenColor);
             App.setProjectFavorite(projectId, favoriteToggle.checked);
         }

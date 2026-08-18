@@ -78,8 +78,10 @@ public:
     Q_INVOKABLE QString addSubtask(const QString &parentId, const QString &content);
 
     // -- Projects ---------------------------------------------------------
-    Q_INVOKABLE QString addProject(const QString &name, const QString &color = {}, const QString &parentId = {}, bool favorite = false);
+    Q_INVOKABLE QString addProject(const QString &name, const QString &color = {}, const QString &parentId = {}, bool favorite = false,
+                                   const QString &description = {});
     Q_INVOKABLE void renameProject(const QString &id, const QString &name);
+    Q_INVOKABLE void setProjectDescription(const QString &id, const QString &description);
     Q_INVOKABLE void setProjectColor(const QString &id, const QString &color);
     Q_INVOKABLE void setProjectFavorite(const QString &id, bool favorite);
     Q_INVOKABLE void deleteProject(const QString &id);

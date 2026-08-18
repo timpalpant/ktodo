@@ -22,6 +22,7 @@ Kirigami.ScrollablePage {
     readonly property var projectInfo: projectId !== "" ? App.projectDetails(projectId) : ({})
     readonly property bool isProject: mode === TaskModel.ProjectTasks || mode === TaskModel.Inbox
     readonly property bool readOnly: projectInfo.readOnly ?? false
+    readonly property string projectDescription: projectInfo.description ?? ""
 
     title: pageTitle
 
@@ -37,6 +38,8 @@ Kirigami.ScrollablePage {
         if (!showUpcomingCalendar || taskListView.count === 0) {
             return;
         }
+        // Only the calendar is in the header here: the project description,
+        // the header's other occupant, never shows on a page with a calendar.
         const calendarHeight = taskListView.headerItem?.height ?? 0;
         const row = taskListView.indexAt(taskListView.width / 2,
                                          taskListView.contentY + calendarHeight + 1);
@@ -174,13 +177,67 @@ Kirigami.ScrollablePage {
 
         headerPositioning: root.showUpcomingCalendar
             ? ListView.OverlayHeader : ListView.InlineHeader
-        header: UpcomingCalendar {
+        // The calendar and the project description never appear together --
+        // one belongs to Upcoming, the other to a project -- but both sit
+        // above the first row, so they share the header.
+        header: Column {
             width: taskListView.width
-            visible: root.showUpcomingCalendar
-            implicitHeight: visible ? contentImplicitHeight : 0
-            selectedDate: root.agendaDate
-            agendaModel: taskModel
-            onDateSelected: date => root.scrollToAgendaDate(date)
+
+            UpcomingCalendar {
+                width: parent.width
+                visible: root.showUpcomingCalendar
+                implicitHeight: visible ? contentImplicitHeight : 0
+                selectedDate: root.agendaDate
+                agendaModel: taskModel
+                onDateSelected: date => root.scrollToAgendaDate(date)
+            }
+
+            Item {
+                width: parent.width
+                visible: root.projectDescription !== ""
+                implicitHeight: visible
+                    ? descriptionLabel.implicitHeight + Kirigami.Units.largeSpacing
+                        + Kirigami.Units.smallSpacing
+                    : 0
+
+                QQC2.Label {
+                    id: descriptionLabel
+
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.leftMargin: Kirigami.Units.largeSpacing
+                    anchors.rightMargin: Kirigami.Units.largeSpacing
+                    anchors.topMargin: Kirigami.Units.largeSpacing
+
+                    // Rich text so Markdown links and bare URLs are clickable
+                    // here just as they are in a task's description.
+                    text: App.richText(root.projectDescription)
+                    textFormat: Text.RichText
+                    wrapMode: Text.Wrap
+                    opacity: 0.7
+
+                    // Only a press on a link is taken; anything else falls
+                    // through to the list.
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: descriptionLabel.linkAt(mouseX, mouseY) !== ""
+                            ? Qt.PointingHandCursor
+                            : Qt.ArrowCursor
+
+                        onPressed: mouse => {
+                            mouse.accepted = descriptionLabel.linkAt(mouse.x, mouse.y) !== "";
+                        }
+                        onClicked: mouse => {
+                            const link = descriptionLabel.linkAt(mouse.x, mouse.y);
+                            if (link !== "") {
+                                Qt.openUrlExternally(link);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         onMovementEnded: root.updateAgendaDateFromViewport()

@@ -1179,13 +1179,15 @@ void Repository::deleteItem(const QString &id)
     Q_EMIT itemsChanged();
 }
 
-QString Repository::addProject(const QString &name, const QString &color, const QString &parentId, bool isFavorite)
+QString Repository::addProject(const QString &name, const QString &color, const QString &parentId, bool isFavorite,
+                               const QString &description)
 {
     const QString localId = newLocalId();
 
     Project p;
     p.id = localId;
     p.name = name;
+    p.description = description;
     p.color = color;
     p.parentId = parentId;
     p.isFavorite = isFavorite;
@@ -1199,6 +1201,9 @@ QString Repository::addProject(const QString &name, const QString &color, const 
     }
     if (isFavorite) {
         args[QStringLiteral("is_favorite")] = true;
+    }
+    if (!description.isEmpty()) {
+        args[QStringLiteral("description")] = description;
     }
     CommandQueue::instance()->enqueue(QStringLiteral("project_add"), args, localId);
 
