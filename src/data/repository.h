@@ -112,8 +112,7 @@ public:
     void uncompleteItem(const QString &id);
     void deleteItem(const QString &id);
 
-    QString addProject(const QString &name, const QString &color, const QString &parentId, bool isFavorite,
-                       const QString &description = {});
+    QString addProject(const QString &name, const QString &color, const QString &parentId, bool isFavorite, const QString &description = {});
     void updateProject(const QString &id, const QJsonObject &changes);
     void deleteProject(const QString &id);
     void archiveProject(const QString &id);

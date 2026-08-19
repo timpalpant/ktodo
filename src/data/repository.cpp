@@ -1179,8 +1179,7 @@ void Repository::deleteItem(const QString &id)
     Q_EMIT itemsChanged();
 }
 
-QString Repository::addProject(const QString &name, const QString &color, const QString &parentId, bool isFavorite,
-                               const QString &description)
+QString Repository::addProject(const QString &name, const QString &color, const QString &parentId, bool isFavorite, const QString &description)
 {
     const QString localId = newLocalId();
 
