@@ -80,6 +80,11 @@
   </provides>
 
   <releases>
+    <release version="1.4.1" date="2026-08-28">
+      <description>
+        <p>Add native aarch64 builds for Arch, Debian, RPM, and Flatpak packages.</p>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-08-18">
       <description>
         <p>Add support for viewing and editing project descriptions.</p>

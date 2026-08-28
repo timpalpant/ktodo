@@ -109,8 +109,16 @@ jobs:
             | xargs -0 clang-format --dry-run --Werror
 
   packaging:
-    name: Packaging files
-    runs-on: ubuntu-latest
+    name: Packaging files (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     container: archlinux:latest
     steps:
       - name: Install dependencies
@@ -158,13 +166,21 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ktodo-pacman-package
+          name: ktodo-pacman-package-${{ matrix.arch }}
           path: dist/*.pkg.tar.zst
           if-no-files-found: error
 
   deb:
-    name: Debian package
-    runs-on: ubuntu-latest
+    name: Debian package (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     container: debian:trixie
     steps:
       - name: Install dependencies
@@ -198,15 +214,23 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ktodo-deb-package
+          name: ktodo-deb-package-${{ matrix.arch }}
           path: |
             dist/*.deb
             dist/*.deb.sha256
           if-no-files-found: error
 
   rpm:
-    name: RPM package
-    runs-on: ubuntu-latest
+    name: RPM package (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     container: registry.fedoraproject.org/fedora:latest
     steps:
       - name: Install dependencies
@@ -240,15 +264,23 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ktodo-rpm-package
+          name: ktodo-rpm-package-${{ matrix.arch }}
           path: |
             dist/*.rpm
             dist/*.rpm.sha256
           if-no-files-found: error
 
   flatpak:
-    name: Flatpak
-    runs-on: ubuntu-latest
+    name: Flatpak (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
 
@@ -285,8 +317,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .flatpak-builder
-          key: flatpak-builder-${{ hashFiles('packaging/flatpak/*.yml') }}
-          restore-keys: flatpak-builder-
+          key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('packaging/flatpak/*.yml') }}
+          restore-keys: flatpak-builder-${{ matrix.arch }}-
 
       - name: Build
         # The CI manifest builds this checkout; the tagged one is for releases.
@@ -314,6 +346,6 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ktodo-flatpak
+          name: ktodo-flatpak-${{ matrix.arch }}
           path: ktodo.flatpak
           if-no-files-found: error
