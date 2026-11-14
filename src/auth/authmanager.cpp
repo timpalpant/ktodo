@@ -34,7 +34,11 @@ constexpr quint16 CallbackPort = 8788;
 const QString CallbackHost = QStringLiteral("127.0.0.1");
 const QString CallbackPath = QStringLiteral("/callback");
 
-const QString AuthorizeUrl = QStringLiteral("https://app.todoist.com/oauth/authorize");
+// The documented endpoint. app.todoist.com/oauth/authorize also works when the
+// browser already has a Todoist session, but after a fresh sign-in (e.g. via
+// Google) the web app takes over that path and shows "Workspace not found"
+// instead of returning to the redirect URI.
+const QString AuthorizeUrl = QStringLiteral("https://todoist.com/oauth/authorize");
 const QString TokenUrl = QStringLiteral("https://api.todoist.com/oauth/access_token");
 
 // Enough to read and write tasks and to delete projects the user owns.
